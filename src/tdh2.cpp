@@ -172,14 +172,6 @@ namespace Botan {
 		BigInt::encode_1363(out.data() + msg.size() + 20 + 2*m_group.p_bytes(), m_group.p_bytes(), e);
 		BigInt::encode_1363(out.data() + msg.size() + 20 + 3*m_group.p_bytes(), m_group.p_bytes(), f);
 
-		//std::cout << "label: " << hex_encode(l) << "\n";
-		//std::cout << "u: " << u << "\n";
-		//std::cout << "u_hat: " << u_hat << "\n";
-		//std::cout << "e: " << e << "\n";
-		//std::cout << "f: " << f << "\n";
-		//std::cout << "w: " << w << "\n";
-		//std::cout << "w_hat:" << w_hat << "\n\n";
-
 		return unlock(out);
 	}
 
@@ -246,16 +238,17 @@ namespace Botan {
 		}
 		return val % q;
 	}
+
 	std::vector<TDH2_PartialPrivateKey> TDH2_PartialPrivateKey::generate_keys(uint8_t k, 
 													 uint8_t n, 
 													 RandomNumberGenerator& rng,
 													 const DL_Group& group) {
 		if(n > 255) {
-			throw Invalid_Argument("Maximum number of keys is 255");
+			throw Invalid_Argument("TDH2: Maximum number of keys is 255");
 		}
 
 		if (k > n) {
-			throw Invalid_Argument("Threshold is higher than total number keys");
+			throw Invalid_Argument("TDH2: Threshold is higher than total number keys");
 		}
 
 		srand(time(NULL));
@@ -323,14 +316,6 @@ namespace Botan {
 		std::copy(&m_id, &m_id + 1, share.data());
 		BigInt e_test = h2(c, l, u, w, u_hat, w_hat, m_group.get_q());
 
-		//std::cout << "\n--share " << (int)m_id << "--\nlabel: " << hex_encode(l) << "\n";
-		//std::cout << "u: " << u << "\n";
-		//std::cout << "u_hat: " << u_hat << "\n";
-		//std::cout << "w: " << w << "\n";
-		//std::cout << "w_hat:" << w_hat << "\n\n";
-		//std::cout << "e:" << e << "\n\n";
-		//std::cout << "e_test:" << e_test << "\n\n";
-
 		if (e == e_test) {
 			
 			valid = 1;
@@ -354,7 +339,7 @@ namespace Botan {
 
 	std::vector<uint8_t> TDH2_PartialPrivateKey::combine_shares(std::vector<uint8_t> encryption, std::vector<std::vector<uint8_t>> shares) {
 		if (get_k() > shares.size())
-			throw Invalid_Argument("Not enough decryption shares to reconstruct message");
+			throw Invalid_Argument("TDH2: Not enough decryption shares to reconstruct message");
 		
 		std::vector<uint8_t> ids;
 
@@ -412,7 +397,7 @@ namespace Botan {
 
 		for(uint8_t i = 0; i != keys.size(); ++i) {
 			if (keys.at(i).get_group().get_q() != q)
-				throw Invalid_Argument("Keys have different q");
+				throw Invalid_Argument("TDH2: Keys have different q");
 
 			ids.push_back(keys.at(i).get_id());
 		}
