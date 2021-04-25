@@ -12,7 +12,6 @@
 
 
 namespace Botan {
-
 	BigInt h4(BigInt g1, BigInt g2, BigInt g3, BigInt q) {
 		std::unique_ptr<HashFunction> hash(HashFunction::create("SHA-256"));
 		secure_vector<uint8_t> data(3 * hash->output_length());
@@ -35,10 +34,10 @@ namespace Botan {
 		hash->update(data);
 		Botan::secure_vector<uint8_t> h = hash->final();
 
-		if (q.bits() > 256 / 2) {
+		if (q.bits() > hash->output_length()*4) {
 			Botan::secure_vector<uint8_t> g = h;
 
-			for (BigInt i = 1; i < ceil((q.bits() - 256 / 2) / 256); ++i) {
+			for (BigInt i = 1; i < ceil((q.bits() - hash->output_length()*4)/hash->output_length()*8); ++i) {
 				buf = g;
 				buf.insert(buf.end(), i.data(), i.data() + i.size());
 				hash->update(buf);
@@ -89,10 +88,10 @@ namespace Botan {
 		hash->update(data);
 		Botan::secure_vector<uint8_t> h = hash->final();
 
-		if (q.bits() > 256 / 2) {
+		if(q.bits() > hash->output_length() * 4) {
 			Botan::secure_vector<uint8_t> g = h;
 
-			for (BigInt i = 1; i < ceil((q.bits() - 256 / 2) / 256); ++i) {
+			for(BigInt i = 1; i < ceil((q.bits() - hash->output_length()*4)/hash->output_length()*8); ++i) {
 				buf = g;
 				buf.insert(buf.end(), i.data(), i.data() + i.size());
 				hash->update(buf);
