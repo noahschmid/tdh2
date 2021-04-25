@@ -4,6 +4,7 @@
 #include <botan/auto_rng.h>
 #include <botan/bigint.h>
 #include <botan/der_enc.h>
+#include <iostream>
 
 template<class BidiIter >
 BidiIter random_unique(BidiIter begin, BidiIter end, size_t num_random) {

@@ -8,6 +8,7 @@
 #include <botan/numthry.h>
 #include <botan/hash.h>
 #include <botan/auto_rng.h>
+#include <iostream>
 
 
 namespace Botan {

@@ -3,15 +3,11 @@
 #define BOTAN_TDH2_H_
 
 #include <botan/secmem.h>
-#include <botan/dl_algo.h>
-#include <botan/dl_group.h>
 #include <botan/dh.h>
-#include <botan/tss.h>
 #include <botan/bigint.h>
 #include <stdlib.h>
 #include <time.h>
 #include <botan/hex.h>
-#include <iostream>
 
 namespace Botan {
 	class TDH2_PublicKey : public virtual DL_Scheme_PublicKey {
