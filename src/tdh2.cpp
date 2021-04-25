@@ -38,7 +38,7 @@ namespace Botan {
 		if (q.bits() > 256 / 2) {
 			Botan::secure_vector<uint8_t> g = h;
 
-			for (BigInt i = 1; i != ceil((q.bits() - 256 / 2) / 256); ++i) {
+			for (BigInt i = 1; i < ceil((q.bits() - 256 / 2) / 256); ++i) {
 				buf = g;
 				buf.insert(buf.end(), i.data(), i.data() + i.size());
 				hash->update(buf);
@@ -122,7 +122,6 @@ namespace Botan {
 		m_h = h;
 	}
 
-
 	uint8_t* TDH2_PublicKey::extract_label(std::vector<uint8_t> encryption) {
 		if (encryption.size() < 4*m_group.p_bytes() + 21) {
 			throw Invalid_Argument("encryption too short");
@@ -173,13 +172,13 @@ namespace Botan {
 		BigInt::encode_1363(out.data() + msg.size() + 20 + 2*m_group.p_bytes(), m_group.p_bytes(), e);
 		BigInt::encode_1363(out.data() + msg.size() + 20 + 3*m_group.p_bytes(), m_group.p_bytes(), f);
 
-		std::cout << "out size after: " << out.size() << "\n";
-		std::cout << "p_bytes: " << m_group.p_bytes() << "\n";
-		std::cout << "label: " << hex_encode(l) << "\n";
-		std::cout << "u: " << u << "\n";
-		std::cout << "u_hat: " << u_hat << "\n";
-		std::cout << "e: " << e << "\n";
-		std::cout << "f: " << f << "\n";
+		//std::cout << "label: " << hex_encode(l) << "\n";
+		//std::cout << "u: " << u << "\n";
+		//std::cout << "u_hat: " << u_hat << "\n";
+		//std::cout << "e: " << e << "\n";
+		//std::cout << "f: " << f << "\n";
+		//std::cout << "w: " << w << "\n";
+		//std::cout << "w_hat:" << w_hat << "\n\n";
 
 		return unlock(out);
 	}
@@ -195,19 +194,20 @@ namespace Botan {
 		std::vector<uint8_t> l(encryption.data() + encryption.size() - 4 * m_group.p_bytes() - 20, encryption.data() + encryption.size() - 4 * m_group.p_bytes());
 		std::vector<uint8_t> c(encryption.data(), encryption.data() + encryption.size() - 4 * m_group.p_bytes() - 20);
 
-		BigInt w = m_group.power_g_p(f) / power_mod(u, e, m_group.get_p());
-		BigInt w_hat = power_mod(get_g_hat(), f, m_group.get_p()) / power_mod(u_hat, e, m_group.get_p());
+		BigInt w = m_group.multiply_mod_p(m_group.power_g_p(f), inverse_mod(power_mod(u, e, m_group.get_p()), m_group.get_p()));
+		BigInt w_hat = m_group.multiply_mod_p(power_mod(get_g_hat(), f, m_group.get_p()), inverse_mod(power_mod(u_hat, e, m_group.get_p()),m_group.get_p()));
 
-		size_t id = encryption.at(0);
-		size_t valid = encryption.at(1);
-		BigInt hi = m_h.at(id);
+		size_t id = share.at(0);
+		size_t valid = share.at(1);
+
+		BigInt hi = m_h.at((int)(id - 1));
 
 		if (e == h2(c, l, u, w, u_hat, w_hat, m_group.get_q()) && share.size() == 2 + 3*m_group.p_bytes()) {
 			BigInt ui(share.data() + 2, m_group.p_bytes());
 			BigInt ei(share.data() + 2 + m_group.p_bytes(), m_group.p_bytes());
 			BigInt fi(share.data() + 2 + 2*m_group.p_bytes(), m_group.p_bytes());
-			BigInt hi_hat = m_group.power_g_p(fi) / power_mod(hi, ei, m_group.get_p());
-			BigInt ui_hat = power_mod(u, fi, m_group.get_p()) / power_mod(ui, ei, m_group.get_p());
+			BigInt hi_hat = m_group.multiply_mod_p(m_group.power_g_p(fi), inverse_mod(power_mod(hi, ei, m_group.get_p()), m_group.get_p()));
+			BigInt ui_hat = m_group.multiply_mod_p(power_mod(u, fi, m_group.get_p()), inverse_mod(power_mod(ui, ei, m_group.get_p()), m_group.get_p()));
 
 			if(ei == h4(ui, ui_hat, hi_hat, m_group.get_q()))
 				return true;
@@ -314,15 +314,25 @@ namespace Botan {
 		std::vector<uint8_t> l(encryption.data() + encryption.size() - 4 * m_group.p_bytes() - 20, encryption.data() + encryption.size() - 4 * m_group.p_bytes());
 		std::vector<uint8_t> c(encryption.data(), encryption.data() + encryption.size() - 4 * m_group.p_bytes() - 20);
 
-		BigInt w = m_group.power_g_p(f) / power_mod(u, e, m_group.get_p());
-		BigInt w_hat = power_mod(get_g_hat(), f, m_group.get_p()) / power_mod(u_hat, e, m_group.get_p());
+		BigInt w = m_group.multiply_mod_p(m_group.power_g_p(f), inverse_mod(power_mod(u, e, m_group.get_p()), m_group.get_p()));
+		BigInt w_hat = m_group.multiply_mod_p(power_mod(get_g_hat(), f, m_group.get_p()), inverse_mod(power_mod(u_hat, e, m_group.get_p()), m_group.get_p()));
 
 		size_t valid = 0;
 
 		std::vector<uint8_t> share(2);
 		std::copy(&m_id, &m_id + 1, share.data());
+		BigInt e_test = h2(c, l, u, w, u_hat, w_hat, m_group.get_q());
 
-		if (e == h2(c, l, u, w, u_hat, w_hat, m_group.get_q())) {
+		//std::cout << "\n--share " << (int)m_id << "--\nlabel: " << hex_encode(l) << "\n";
+		//std::cout << "u: " << u << "\n";
+		//std::cout << "u_hat: " << u_hat << "\n";
+		//std::cout << "w: " << w << "\n";
+		//std::cout << "w_hat:" << w_hat << "\n\n";
+		//std::cout << "e:" << e << "\n\n";
+		//std::cout << "e_test:" << e_test << "\n\n";
+
+		if (e == e_test) {
+			
 			valid = 1;
 			share.resize(2 + 3 * m_group.p_bytes());
 			BigInt ui = power_mod(u, m_xi, m_group.get_p());
@@ -339,8 +349,6 @@ namespace Botan {
 
 		std::copy(&valid, &valid + 1, share.data() + 1);
 
-		std::cout << "share: " << hex_encode(share) << "\n";
-
 		return share; // (id, 1, ui, ei, fi) || (id, 0)
 	}
 
@@ -351,6 +359,12 @@ namespace Botan {
 		std::vector<uint8_t> ids;
 
 		for (uint8_t i = 0; i != shares.size(); ++i) {
+			if(!verify_share(shares.at(i), encryption))
+				return std::vector<uint8_t>();
+
+			if(shares.at(i).at(1) == 0)
+				return std::vector<uint8_t>();
+
 			ids.push_back(shares.at(i).at(0));
 		}
 		
@@ -363,10 +377,6 @@ namespace Botan {
 		}
 
 		rG %= m_group.get_p();
-
-		std::cout << "\nreconstructed rG: " << rG << std::endl;
-		std::cout << encryption.size() << std::endl;
-		std::cout << (4 * get_group().p_bytes() + 20) << "\n";
 		
 		std::unique_ptr<Botan::RandomNumberGenerator> rng(new Botan::AutoSeeded_RNG);
 		DH_PrivateKey key(*rng.get(), get_group(), 1);
