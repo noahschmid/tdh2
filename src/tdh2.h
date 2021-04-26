@@ -32,7 +32,7 @@ namespace Botan {
 
 		bool verify_share(std::vector<uint8_t> share, std::vector<uint8_t> encryption);
 
-		uint8_t* extract_label(std::vector<uint8_t> encryption);
+		std::vector<uint8_t> extract_label(std::vector<uint8_t> encryption);
 
 		BigInt get_g_hat() { return m_g_hat; }
 		uint8_t get_k() { return m_k; }

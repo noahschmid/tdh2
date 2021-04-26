@@ -34,6 +34,19 @@ std::string hex2string(std::vector<uint8_t> hex_arr) {
 	return newString;
 }
 
+std::string hex2string(uint8_t* hex_arr, int len) {
+	std::string hex = Botan::hex_encode(hex_arr, len);
+	std::string newString;
+
+	for(int i = 0; i < len; i += 2) {
+		std::string byte = hex.substr(i, 2);
+		char chr = (char)(int)strtol(byte.c_str(), NULL, 16);
+		newString.push_back(chr);
+	}
+
+	return newString;
+}
+
 int main(int argc, char* argv[]) {
 	Timer timer;
 	std::unique_ptr<Botan::RandomNumberGenerator> rng(new Botan::AutoSeeded_RNG);
@@ -65,6 +78,8 @@ int main(int argc, char* argv[]) {
 	std::vector<uint8_t> encryption = publicKey.encrypt(msg, label, *rng.get());
 	std::cout << "encryption: " << Botan::hex_encode(encryption) << std::endl;
 	timer.stop();
+
+	std::cout << "\n label: " << Botan::hex_encode(publicKey.extract_label(encryption)) << std::endl;
 
 	std::vector<std::vector<uint8_t>> dec_shares;
 
