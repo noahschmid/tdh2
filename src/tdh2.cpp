@@ -149,7 +149,7 @@ namespace Botan {
 		xor_buf(msg, secret_keys, cipher_key_len);
 
 
-		secure_vector<uint8_t> out(msg.size() + 20 + 4*m_group.p_bytes());
+		secure_vector<uint8_t> out(msg.size() + 20 + 2*m_group.p_bytes() + 2 * m_group.q_bytes());
 		std::vector<uint8_t> l(label, label + 20);
 
 		BigInt s(rng, m_group.q_bits() - 1);
@@ -164,10 +164,10 @@ namespace Botan {
 		// out = (cipher, label, u, u_hat, e, f)
 		buffer_insert(out, 0, msg);
 		buffer_insert(out, msg.size(), l);
-		BigInt::encode_1363(out.data() + msg.size() + 20,                      m_group.p_bytes(), u);
-		BigInt::encode_1363(out.data() + msg.size() + 20 +   m_group.p_bytes(), m_group.p_bytes(), u_hat);
-		BigInt::encode_1363(out.data() + msg.size() + 20 + 2*m_group.p_bytes(), m_group.p_bytes(), e);
-		BigInt::encode_1363(out.data() + msg.size() + 20 + 3*m_group.p_bytes(), m_group.p_bytes(), f);
+		BigInt::encode_1363(out.data() + msg.size() + 20,											m_group.p_bytes(), u);
+		BigInt::encode_1363(out.data() + msg.size() + 20 +   m_group.p_bytes(),						m_group.p_bytes(), u_hat);
+		BigInt::encode_1363(out.data() + msg.size() + 20 + 2*m_group.p_bytes(),						m_group.q_bytes(), e);
+		BigInt::encode_1363(out.data() + msg.size() + 20 + 2*m_group.p_bytes() + m_group.q_bytes(), m_group.q_bytes(), f);
 
 		return unlock(out);
 	}
@@ -179,12 +179,12 @@ namespace Botan {
 		BigInt g = m_group.get_g();
 		BigInt p = m_group.get_p();
 
-		BigInt u(encryption.data() + encryption.size() - 4 * m_group.p_bytes(), m_group.p_bytes());
-		BigInt u_hat(encryption.data() + encryption.size() - 3 * m_group.p_bytes(), m_group.p_bytes());
-		BigInt e(encryption.data() + encryption.size() - 2 * m_group.p_bytes(), m_group.p_bytes());
-		BigInt f(encryption.data() + encryption.size() - m_group.p_bytes(), m_group.p_bytes());
-		std::vector<uint8_t> l(encryption.data() + encryption.size() - 4 * m_group.p_bytes() - 20, encryption.data() + encryption.size() - 4 * m_group.p_bytes());
-		std::vector<uint8_t> c(encryption.data(), encryption.data() + encryption.size() - 4 * m_group.p_bytes() - 20);
+		BigInt u(encryption.data() + encryption.size() - 2*m_group.p_bytes() - 2*m_group.q_bytes(), m_group.p_bytes());
+		BigInt u_hat(encryption.data() + encryption.size() - m_group.p_bytes() -2*m_group.q_bytes(), m_group.p_bytes());
+		BigInt e(encryption.data() + encryption.size() - 2*m_group.q_bytes(), m_group.q_bytes());
+		BigInt f(encryption.data() + encryption.size() - m_group.q_bytes(), m_group.q_bytes());
+		std::vector<uint8_t> l(encryption.data() + encryption.size() - 2*m_group.p_bytes() - 2*m_group.q_bytes() - 20, encryption.data() + encryption.size() - 2 * m_group.p_bytes() - 2 * m_group.q_bytes());
+		std::vector<uint8_t> c(encryption.data(), encryption.data() + encryption.size() - 2*m_group.p_bytes() - 2*m_group.q_bytes() - 20);
 
 		BigInt w = m_group.multiply_mod_p(m_group.power_g_p(f, m_group.q_bits()), inverse_mod(power_mod(u, e, m_group.get_p()), m_group.get_p()));
 		BigInt w_hat = m_group.multiply_mod_p(power_mod(get_g_hat(), f, m_group.get_p()), inverse_mod(power_mod(u_hat, e, m_group.get_p()),m_group.get_p()));
@@ -289,12 +289,12 @@ namespace Botan {
 	}
 
 	std::vector<uint8_t> TDH2_PartialPrivateKey::decrypt_share(std::vector<uint8_t> encryption, RandomNumberGenerator &rng) {
-		BigInt u(encryption.data() + encryption.size() - 4*m_group.p_bytes(), m_group.p_bytes());
-		BigInt u_hat(encryption.data() + encryption.size() - 3*m_group.p_bytes(), m_group.p_bytes());
-		BigInt e(encryption.data() + encryption.size() - 2*m_group.p_bytes(), m_group.p_bytes());
-		BigInt f(encryption.data() + encryption.size() - m_group.p_bytes(), m_group.p_bytes());
-		std::vector<uint8_t> l(encryption.data() + encryption.size() - 4 * m_group.p_bytes() - 20, encryption.data() + encryption.size() - 4 * m_group.p_bytes());
-		std::vector<uint8_t> c(encryption.data(), encryption.data() + encryption.size() - 4 * m_group.p_bytes() - 20);
+		BigInt u(encryption.data() + encryption.size() - 2*m_group.p_bytes() - 2*m_group.q_bytes(), m_group.p_bytes());
+		BigInt u_hat(encryption.data() + encryption.size() - m_group.p_bytes() - 2*m_group.q_bytes(), m_group.p_bytes());
+		BigInt e(encryption.data() + encryption.size() - 2*m_group.q_bytes(), m_group.q_bytes());
+		BigInt f(encryption.data() + encryption.size() - m_group.q_bytes(), m_group.q_bytes());
+		std::vector<uint8_t> l(encryption.data() + encryption.size() - 2 * m_group.p_bytes() - 2 * m_group.q_bytes() - 20, encryption.data() + encryption.size() - 2 * m_group.p_bytes() - 2 * m_group.q_bytes());
+		std::vector<uint8_t> c(encryption.data(), encryption.data() + encryption.size() - 2 * m_group.p_bytes() - 2 * m_group.q_bytes() - 20);
 		
 		f = m_group.mod_q(f);
 		BigInt w = m_group.multiply_mod_p(m_group.power_g_p(f, m_group.q_bits()), m_group.inverse_mod_p(power_mod(u, e, m_group.get_p())));
@@ -371,7 +371,7 @@ namespace Botan {
 
 		const SymmetricKey secret_value(secret_key);
 
-		std::vector<uint8_t> cipher(encryption.data(), encryption.data() + encryption.size() - (20 + 4 * m_group.p_bytes()));
+		std::vector<uint8_t> cipher(encryption.data(), encryption.data() + encryption.size() - (20 + 2*m_group.p_bytes() + 2*m_group.q_bytes()));
 		const size_t ciphertext_len = cipher.size();
 		size_t cipher_key_len = ciphertext_len;
 
