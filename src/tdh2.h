@@ -17,14 +17,14 @@ namespace Botan {
 			const std::vector<uint8_t>& key_bits,
 			uint8_t k,
 			std::vector<BigInt> h) :
-			DL_Scheme_PublicKey(alg_id, key_bits, DL_Group::Format::ANSI_X9_42) {
+			DL_Scheme_PublicKey(alg_id, key_bits, DL_Group_Format::ANSI_X9_42) {
 			m_k = k; 
 			m_h = h;
 		}
 		TDH2_PublicKey(const TDH2_PublicKey &publicKey);
 
 		std::string algo_name() const override { return "TDH2"; }
-		DL_Group::Format group_format() const override { return DL_Group::ANSI_X9_42; }
+		DL_Group::Format group_format() const override { return DL_Group_Format::ANSI_X9_42; }
 
 		std::vector<uint8_t> encrypt(std::vector<uint8_t> msg,
 			uint8_t label[20],

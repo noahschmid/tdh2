@@ -1,14 +1,9 @@
-#pragma once
-
 #include "tdh2.h"
 #include <botan/auto_rng.h>
 #include <botan/bigint.h>
 #include <botan/der_enc.h>
 #include <iostream>
 #include "timer.h"
-#include <botan/monty.h>
-#include <botan/pow_mod.h>
-#include <botan/blinding.h>
 
 template<class BidiIter >
 BidiIter random_unique(BidiIter begin, BidiIter end, size_t num_random) {

@@ -15,7 +15,7 @@ public:
 
 	void stop() {
 		m_endTime = std::chrono::system_clock::now();
-		printf("%s: %dms. \n\n", m_label.c_str(), std::chrono::duration_cast<std::chrono::milliseconds>(m_endTime - m_startTime).count());
+		printf("%s: %dms. \n\n", m_label.c_str(), (int)(std::chrono::duration_cast<std::chrono::milliseconds>(m_endTime - m_startTime).count()));
 	}
 
 private:

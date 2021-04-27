@@ -1,15 +1,13 @@
 #pragma once
 #include "tdh2.h"
 #include <botan/der_enc.h>
-#include <botan/pk_ops.h>
-#include <botan/monty.h>
-#include <botan/keypair.h>
 #include <botan/dlies.h>
 #include <botan/numthry.h>
 #include <botan/hash.h>
 #include <botan/auto_rng.h>
 #include <iostream>
 #include <botan/reducer.h>
+#include <math.h>
 
 namespace Botan {
 	BigInt h4(BigInt g1, BigInt g2, BigInt g3, BigInt q) {
