@@ -1,1 +1,6 @@
 /Threshold_Crypto
+/build
+/include
+/lib
+/.vscode
+Makefile

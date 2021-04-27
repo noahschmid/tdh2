@@ -1,4 +1,3 @@
-#pragma once
 #include "tdh2.h"
 #include <botan/der_enc.h>
 #include <botan/dlies.h>
