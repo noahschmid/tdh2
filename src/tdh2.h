@@ -13,14 +13,7 @@ namespace Botan {
 	class TDH2_PublicKey : public virtual DL_Scheme_PublicKey {
 	public:
 		TDH2_PublicKey(const DL_Group& group, BigInt y, BigInt g_hat, uint8_t k, std::vector<BigInt> h);
-		TDH2_PublicKey(const AlgorithmIdentifier& alg_id,
-			const std::vector<uint8_t>& key_bits,
-			uint8_t k,
-			std::vector<BigInt> h) :
-			DL_Scheme_PublicKey(alg_id, key_bits, DL_Group_Format::ANSI_X9_42) {
-			m_k = k; 
-			m_h = h;
-		}
+		TDH2_PublicKey(std::vector<uint8_t> key_bits);
 		TDH2_PublicKey(const TDH2_PublicKey &publicKey);
 
 		std::string algo_name() const override { return "TDH2"; }
@@ -37,8 +30,7 @@ namespace Botan {
 		BigInt get_g_hat() { return m_g_hat; }
 		uint8_t get_k() { return m_k; }
 
-		//std::vector<uint8_t> subject_public_key() const;
-		AlgorithmIdentifier algorithm_identifier() const override;
+		std::vector<uint8_t> subject_public_key() const;
 
 	private:
 		BigInt m_g_hat;
@@ -68,7 +60,6 @@ namespace Botan {
 		static std::vector<uint8_t> reconstruct_secret(std::vector<TDH2_PartialPrivateKey> keys);
 
 		std::vector<uint8_t> public_value() const;
-
 		secure_vector<uint8_t> get_private_key();
 
 		BigInt get_xi() { return m_xi;  }

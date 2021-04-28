@@ -73,10 +73,12 @@ int main(int argc, char* argv[]) {
 	timer.stop();
 	
 	Botan::TDH2_PublicKey publicKey(privateKeys[0]);
+
+	Botan::TDH2_PublicKey deserializedPublic(publicKey.subject_public_key());
 	std::cout << n << " private keys generated." << std::endl;
 
 	timer.start("encryption time");
-	std::vector<uint8_t> encryption = publicKey.encrypt(msg, label, *rng.get());
+	std::vector<uint8_t> encryption = deserializedPublic.encrypt(msg, label, *rng.get());
 	std::cout << "encryption: " << Botan::hex_encode(encryption) << std::endl;
 	timer.stop();
 

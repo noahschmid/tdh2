@@ -7,6 +7,8 @@
 #include <iostream>
 #include <botan/reducer.h>
 #include <math.h>
+#include <botan/der_enc.h>
+#include <botan/ber_dec.h>
 
 namespace Botan {
 	BigInt h4(BigInt g1, BigInt g2, BigInt g3, BigInt q) {
@@ -118,19 +120,55 @@ namespace Botan {
 		m_h = h;
 	}
 
-	AlgorithmIdentifier TDH2_PublicKey::algorithm_identifier() const {
-		std::vector<uint8_t> group = m_group.DER_encode(group_format());
-		std::vector<uint8_t> params(group.size() + 2 + (1 + m_h.size())*m_group.p_bytes());
-		params[0] = m_k;
-		params[1] = m_h.size();
-		buffer_insert(params, 2, group);
-		BigInt::encode_1363(params.data() + group.size() + 2, m_group.p_bytes(), m_g_hat);
+	TDH2_PublicKey::TDH2_PublicKey(std::vector<uint8_t> key_bits) {
+		m_k = key_bits[0];
+		uint8_t n = key_bits[1];
+		BigInt p, q, g;
 
-		for(int i = 0; i != m_h.size(); ++i) {
-			BigInt::encode_1363(params.data() + group.size() + 2 + (i+1)*m_group.p_bytes(), m_group.p_bytes(), m_h.at(i));
+		if(m_k > n) {
+			throw Invalid_Argument("Invalid public key provided");
 		}
 
-		return AlgorithmIdentifier(OID({1,3,6,1,4,1,3029,1,2,2}), params);
+		BER_Decoder dec(key_bits.data() + 2, key_bits.size() - 2);
+		BER_Decoder ber = dec.start_sequence();
+		ber.decode(p)
+		.decode(g)
+		.decode(q)
+		.decode(m_g_hat)
+		.decode(m_y);
+
+		m_group = DL_Group(p, q, g);
+
+		for(int i = 0; i != n; ++i) {
+			BigInt hi;
+			ber.decode(hi);
+			m_h.push_back(hi);
+		}
+
+		ber.discard_remaining();
+	}
+
+	std::vector<uint8_t> TDH2_PublicKey::subject_public_key() const {
+		std::vector<uint8_t> encoding;
+		DER_Encoder enc(encoding);
+
+		enc.start_sequence()
+		.encode(m_group.get_p())
+		.encode(m_group.get_g())
+		.encode(m_group.get_q())
+		.encode(m_g_hat)
+		.encode(m_y);
+
+		for(int i = 0; i != m_h.size(); ++i) {
+			enc.encode(m_h.at(i));
+		}
+
+		enc.end_cons();
+
+		encoding.insert(encoding.begin(), m_h.size());
+		encoding.insert(encoding.begin(), m_k);
+
+		return encoding;
 	}
 
 	std::vector<uint8_t> TDH2_PublicKey::extract_label(std::vector<uint8_t> encryption) {
@@ -241,7 +279,6 @@ namespace Botan {
 	std::vector<uint8_t> TDH2_PartialPrivateKey::public_value() const {
 		return unlock(BigInt::encode_1363(m_y, group_p().bytes()));
 	}
-
 
 	BigInt get_pol(uint8_t x, std::vector<BigInt> coefficients, BigInt q) {
 		BigInt val = 0;
