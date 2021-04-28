@@ -36,6 +36,10 @@ namespace Botan {
 
 		BigInt get_g_hat() { return m_g_hat; }
 		uint8_t get_k() { return m_k; }
+
+		//std::vector<uint8_t> subject_public_key() const;
+		AlgorithmIdentifier algorithm_identifier() const override;
+
 	private:
 		BigInt m_g_hat;
 		uint8_t m_k;
