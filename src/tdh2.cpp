@@ -277,7 +277,7 @@ namespace Botan {
 		return false;
 	}
 	
-	TDH2_PartialPrivateKey::TDH2_PartialPrivateKey(uint8_t id,
+	TDH2_PrivateKey::TDH2_PrivateKey(uint8_t id,
 		BigInt xi,
 		BigInt g_hat,
 		TDH2_PublicKey publicKey) :
@@ -286,18 +286,14 @@ namespace Botan {
 		m_xi = xi;
 	}
 
-	secure_vector<uint8_t> TDH2_PartialPrivateKey::get_private_key() {
-		secure_vector<uint8_t> output(m_group.p_bytes());
-		m_xi.binary_encode(output.data(), m_group.p_bytes());
-		return output;
-	}
-
-
-	std::vector<uint8_t> TDH2_PartialPrivateKey::public_value() const {
+	std::vector<uint8_t> TDH2_PrivateKey::public_value() const {
 		return unlock(BigInt::encode_1363(m_y, group_p().bytes()));
 	}
 
-	std::vector<TDH2_PartialPrivateKey> TDH2_PartialPrivateKey::generate_keys(uint8_t k, 
+	std::vector<uint8_t> TDH2_PrivateKey::BER_encode(std::string &password) const {
+	}
+
+	std::vector<TDH2_PrivateKey> TDH2_PrivateKey::generate_keys(uint8_t k, 
 													 uint8_t n, 
 													 RandomNumberGenerator& rng,
 													 const DL_Group& group) {
@@ -326,7 +322,7 @@ namespace Botan {
 		coefficients.push_back(x);
 
 		std::vector<BigInt> xi;
-		std::vector<TDH2_PartialPrivateKey> partialKeys;
+		std::vector<TDH2_PrivateKey> partialKeys;
 		std::vector<BigInt> h;
 
 		for(uint8_t i = 1; i != n + 1; ++i) {
@@ -343,13 +339,13 @@ namespace Botan {
 		TDH2_PublicKey publicKey(group, y, g_hat, k, h);
 
 		for(uint8_t i = 0; i != xi.size(); ++i) {
-			partialKeys.push_back(TDH2_PartialPrivateKey(i+1, xi.at(i), g_hat, publicKey));
+			partialKeys.push_back(TDH2_PrivateKey(i+1, xi.at(i), g_hat, publicKey));
 		}
 
 		return partialKeys;
 	}
 
-	std::vector<uint8_t> TDH2_PartialPrivateKey::decrypt_share(std::vector<uint8_t> encryption, RandomNumberGenerator &rng) {
+	std::vector<uint8_t> TDH2_PrivateKey::decrypt_share(std::vector<uint8_t> encryption, RandomNumberGenerator &rng) {
 		BER_Decoder dec(encryption.data(), encryption.size());
 		BigInt u, u_hat, e, f, c, l;
 
@@ -402,7 +398,7 @@ namespace Botan {
 		return share; // (id, 1, ui, ei, fi) || (id, 0)
 	}
 
-	std::vector<uint8_t> TDH2_PartialPrivateKey::combine_shares(std::vector<uint8_t> encryption, std::vector<std::vector<uint8_t>> shares) {
+	std::vector<uint8_t> TDH2_PrivateKey::combine_shares(std::vector<uint8_t> encryption, std::vector<std::vector<uint8_t>> shares) {
 		if (get_k() > shares.size())
 			throw Invalid_Argument("TDH2: Not enough decryption shares to reconstruct message");
 		
@@ -469,7 +465,7 @@ namespace Botan {
 		return cipher;
 	}
 
-	std::vector<uint8_t> TDH2_PartialPrivateKey::reconstruct_secret(std::vector<TDH2_PartialPrivateKey> keys) {
+	std::vector<uint8_t> TDH2_PrivateKey::reconstruct_secret(std::vector<TDH2_PrivateKey> keys) {
 		BigInt key(0);
 		BigInt q(keys.at(0).get_group().get_q());
 		std::vector<uint8_t> ids;

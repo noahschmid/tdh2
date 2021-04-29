@@ -40,16 +40,15 @@ namespace Botan {
 	protected:
 		TDH2_PublicKey() = default;
 	};
-
 	
-	class TDH2_PartialPrivateKey final : public TDH2_PublicKey {
+	class TDH2_PrivateKey final : public TDH2_PublicKey {
 	public:
-		TDH2_PartialPrivateKey(uint8_t id,
+		TDH2_PrivateKey(uint8_t id,
 			BigInt xi,
 			BigInt g_hat, 
 			TDH2_PublicKey publicKey);
 
-		static std::vector<TDH2_PartialPrivateKey> generate_keys(uint8_t M,
+		static std::vector<TDH2_PrivateKey> generate_keys(uint8_t M,
 			uint8_t N,
 			RandomNumberGenerator & rng,
 			const DL_Group & group);
@@ -57,10 +56,11 @@ namespace Botan {
 		std::vector<uint8_t> decrypt_share(std::vector<uint8_t> encryption, RandomNumberGenerator& rng);
 
 		std::vector<uint8_t> combine_shares(std::vector<uint8_t> encryption, std::vector<std::vector<uint8_t>> shares);
-		static std::vector<uint8_t> reconstruct_secret(std::vector<TDH2_PartialPrivateKey> keys);
+		static std::vector<uint8_t> reconstruct_secret(std::vector<TDH2_PrivateKey> keys);
 
 		std::vector<uint8_t> public_value() const;
-		secure_vector<uint8_t> get_private_key();
+
+		std::vector<uint8_t> BER_encode(std::string &password) const;
 
 		BigInt get_xi() { return m_xi;  }
 		uint8_t get_id() { return m_id; }

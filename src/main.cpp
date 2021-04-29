@@ -69,7 +69,7 @@ int main(int argc, char* argv[]) {
 
 	// generate private/public keypair
 	timer.start("key generation time");
-	std::vector<Botan::TDH2_PartialPrivateKey> privateKeys = Botan::TDH2_PartialPrivateKey::generate_keys(k, n, *rng.get(), *group.get());
+	std::vector<Botan::TDH2_PrivateKey> privateKeys = Botan::TDH2_PrivateKey::generate_keys(k, n, *rng.get(), *group.get());
 	timer.stop();
 	
 	// test public key encoding/decoding
@@ -83,7 +83,7 @@ int main(int argc, char* argv[]) {
 	timer.stop();
 	
 	std::vector<int> ids;
-	for(Botan::TDH2_PartialPrivateKey pk : privateKeys) {
+	for(Botan::TDH2_PrivateKey pk : privateKeys) {
 		ids.push_back(pk.get_id());
 	}
 
