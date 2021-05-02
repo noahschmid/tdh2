@@ -76,6 +76,11 @@ int main(int argc, char* argv[]) {
 	Botan::TDH2_PublicKey publicKey(privateKeys[0].subject_public_key());
 	std::cout << n << " private keys generated." << std::endl;
 
+	std::string password = "password";
+
+	// test private key encoding/decoding
+	privateKeys[0] = Botan::TDH2_PrivateKey(privateKeys[0].BER_encode(password), password);
+
 	// encrypt using public key
 	timer.start("encryption time");
 	std::vector<uint8_t> encryption = publicKey.encrypt(msg, label, *rng.get());

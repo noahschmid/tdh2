@@ -286,11 +286,79 @@ namespace Botan {
 		m_xi = xi;
 	}
 
+	TDH2_PrivateKey::TDH2_PrivateKey(std::vector<uint8_t> key_bits, std::string& password) {
+		std::unique_ptr<Botan::KDF> kdf(Botan::KDF::create("HKDF(SHA-256)"));
+		secure_vector<uint8_t> secret(password.data(), password.data() + password.size());
+		const secure_vector<uint8_t> secret_keys = kdf->derive_key(key_bits.size(), secret);
+		xor_buf(key_bits, secret_keys, key_bits.size());
+
+		m_k = key_bits[0];
+		uint8_t n = key_bits[1];
+		BigInt p, q, g;
+
+		std::cout << "n: " << (int)n << std::endl;
+
+		if(m_k > n) {
+			throw Invalid_Argument("Invalid private key provided");
+		}
+
+		BER_Decoder dec(key_bits.data() + 2, key_bits.size() - 2);
+		BER_Decoder ber = dec.start_sequence();
+		BigInt id;
+
+		ber.decode(id)
+		.decode(p)
+		.decode(g)
+		.decode(q)
+		.decode(m_g_hat)
+		.decode(m_xi)
+		.decode(m_y);
+
+		m_id = id.to_u32bit();
+
+		m_group = DL_Group(p, q, g);
+
+		for(int i = 0; i != n; ++i) {
+			BigInt hi;
+			ber.decode(hi);
+			m_h.push_back(hi);
+		}
+
+		ber.discard_remaining();
+	}
+
 	std::vector<uint8_t> TDH2_PrivateKey::public_value() const {
 		return unlock(BigInt::encode_1363(m_y, group_p().bytes()));
 	}
 
-	std::vector<uint8_t> TDH2_PrivateKey::BER_encode(std::string &password) const {
+	std::vector<uint8_t> TDH2_PrivateKey::BER_encode(std::string &password) {
+		std::vector<uint8_t> encoding;
+		DER_Encoder enc(encoding);
+
+		enc.start_sequence()
+		.encode(BigInt(m_id))
+		.encode(m_group.get_p())
+		.encode(m_group.get_g())
+		.encode(m_group.get_q())
+		.encode(get_g_hat())
+		.encode(m_xi)
+		.encode(m_y);
+
+		for(int i = 0; i != get_h().size(); ++i) {
+			enc.encode(get_h().at(i));
+		}
+
+		enc.end_cons();
+
+		encoding.insert(encoding.begin(), (uint8_t)get_h().size());
+		encoding.insert(encoding.begin(), get_k());
+
+		std::unique_ptr<Botan::KDF> kdf(Botan::KDF::create("HKDF(SHA-256)"));
+		secure_vector<uint8_t> secret(password.data(), password.data() + password.size());
+		const secure_vector<uint8_t> secret_keys = kdf->derive_key(encoding.size(), secret);
+		xor_buf(encoding, secret_keys, encoding.size());
+
+		return encoding;
 	}
 
 	std::vector<TDH2_PrivateKey> TDH2_PrivateKey::generate_keys(uint8_t k, 
