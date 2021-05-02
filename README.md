@@ -10,6 +10,7 @@ First, a public key and n private keys are generated and the private keys will b
     std::unique_ptr<Botan::DL_Group> group(new Botan::DL_Group("modp/ietf/2048")); 
     std::unique_ptr<Botan::RandomNumberGenerator> rng(new Botan::AutoSeeded_RNG);
     std::vector<TDH2_PrivateKey> privateKeys = TDH2_PrivateKey::generate_keys(k, n, *rng.get(), *group.get());
+    TDH2_PublicKey publicKey(privateKeys[0].subject_public_key());
 
 ### Encryption
     std::string plaintext = "this is a plaintext message";
