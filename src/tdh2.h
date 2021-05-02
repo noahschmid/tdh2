@@ -154,11 +154,8 @@ namespace Botan {
 		std::vector<uint8_t> combine_shares(std::vector<uint8_t> encryption, std::vector<std::vector<uint8_t>> shares);
 
 		/**
-		 * Combine private key shares to reconstruct secret key value 
-		 * @param keys vector of tdh2 private keys
+		 * @return public value y = g^x mod p
 		 */
-		static std::vector<uint8_t> reconstruct_secret(std::vector<TDH2_PrivateKey> keys);
-
 		std::vector<uint8_t> public_value() const;
 
 		/**

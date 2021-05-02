@@ -1,3 +1,9 @@
+/**
+ * TDH2 Cryptosystem
+ *
+ * (C) 2021 Noah Schmid
+ */
+
 #include "tdh2.h"
 #include <botan/der_enc.h>
 #include <botan/dlies.h>
@@ -11,6 +17,14 @@
 #include <botan/ber_dec.h>
 
 namespace Botan {
+	/**
+	 * Hash function used for zero knowledge proofs. Hashes (g1, g2, g3) -> Zq
+	 * @param g1 value in Zp
+	 * @param g2 value in Zp
+	 * @param g3 value in Zp
+	 * @param q modulus
+	 * @return hash (value in Zq) 
+	 */
 	BigInt h4(BigInt g1, BigInt g2, BigInt g3, BigInt q) {
 		std::unique_ptr<HashFunction> hash(HashFunction::create("SHA-256"));
 		secure_vector<uint8_t> data(3 * hash->output_length());
@@ -50,6 +64,17 @@ namespace Botan {
 		return BigInt(h) % q;
 	}
 
+	/**
+	 * Hash function used for zero knowledge proofs. Hashes (m1, m2, g1, g2, g3, g4) -> Zq
+	 * @param m1 message 
+	 * @param m2 label
+	 * @param g1 value in Zp
+	 * @param g2 value in Zp
+	 * @param g3 value in Zp
+	 * @param g4 value in Zp
+	 * @param q modulus
+	 * @return hash (value in Zq) 
+	 */
 	BigInt h2(std::vector<uint8_t> m1, uint8_t m2[20], BigInt g1, BigInt g2, BigInt g3, BigInt g4, BigInt q) {
 		std::unique_ptr<HashFunction> hash(HashFunction::create("SHA-256"));
 		secure_vector<uint8_t> data(6*hash->output_length());
@@ -296,8 +321,6 @@ namespace Botan {
 		uint8_t n = key_bits[1];
 		BigInt p, q, g;
 
-		std::cout << "n: " << (int)n << std::endl;
-
 		if(m_k > n) {
 			throw Invalid_Argument("Invalid private key provided");
 		}
@@ -531,34 +554,5 @@ namespace Botan {
 		xor_buf(cipher, secret_keys.data(), ciphertext_len);
 
 		return cipher;
-	}
-
-	std::vector<uint8_t> TDH2_PrivateKey::reconstruct_secret(std::vector<TDH2_PrivateKey> keys) {
-		BigInt key(0);
-		BigInt q(keys.at(0).get_group().get_q());
-		std::vector<uint8_t> ids;
-
-		for(uint8_t i = 0; i != keys.size(); ++i) {
-			if (keys.at(i).get_group().get_q() != q)
-				throw Invalid_Argument("TDH2: Keys have different q");
-
-			ids.push_back(keys.at(i).get_id());
-		}
-
-		for(uint8_t k = 0; k != keys.size(); ++k) {
-			BigInt l(1);
-			BigInt i(keys.at(k).get_id());
-
-			for(BigInt j : ids) {
-				if(i != j)
-					l *= ((j % q) * inverse_mod((j - i) % q, q)) % q;
-			}
-
-			l %= q;
-			key += l * keys.at(k).get_xi();
-		}
-
-		key %= q;
-		return hex_decode(key.to_hex_string());
 	}
 }
