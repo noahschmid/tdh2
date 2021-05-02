@@ -69,7 +69,7 @@ int main(int argc, char* argv[]) {
 	timer.stop();
 	
 	// test public key encoding/decoding
-	Botan::TDH2_PublicKey publicKey(privateKeys[0].subject_public_key());
+	Botan::TDH2_PublicKey publicKey(privateKeys[0]);
 
 	std::string password = "password";
 
