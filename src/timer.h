@@ -1,3 +1,9 @@
+/**
+ * Simple timer class to monitor encryption/decryption speed
+ * 
+ * (C) 2021 Noah Schmid 
+ */
+
 #include <iostream>
 #include <chrono>
 #include <ctime>
