@@ -61,7 +61,7 @@ int main(int argc, char* argv[]) {
 
 	std::cout << "message: " << plaintext << "\n";
 
-	const int n = 5, k = 3;
+	const int n = 500, k = 50;
 
 	// generate private/public keypair
 	timer.start("key generation time");
@@ -89,7 +89,7 @@ int main(int argc, char* argv[]) {
 	}
 	
 	// select k random private keys
-	random_unique(ids.begin(), ids.end(), k);
+	//random_unique(ids.begin(), ids.end(), k);
 
 	// create k decryption shares
 	std::vector<std::vector<uint8_t>> dec_shares;

@@ -113,7 +113,7 @@ namespace Botan {
 		 * @param g_hat alternate generator of underlying DL group
 		 * @param publicKey corresponding public key
 		 */
-		TDH2_PrivateKey(uint8_t id,
+		TDH2_PrivateKey(uint32_t id,
 			BigInt xi,
 			BigInt g_hat, 
 			TDH2_PublicKey publicKey);
@@ -134,7 +134,7 @@ namespace Botan {
 		 * @return vector of private keys (including public keys)
 		 */
 		static std::vector<TDH2_PrivateKey> generate_keys(uint8_t k,
-			uint8_t n,
+			uint32_t n,
 			RandomNumberGenerator & rng,
 			const DL_Group & group);
 
@@ -172,11 +172,11 @@ namespace Botan {
 		/**
 		 * Get private key id
 		 */
-		uint8_t get_id() { return m_id; }
+		int get_id() { return m_id; }
 
 	private:
 		BigInt m_xi;
-		uint8_t m_id;
+		uint32_t m_id;
 	};
 }
 
