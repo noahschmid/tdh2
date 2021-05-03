@@ -3,7 +3,7 @@
 Threshold cryptosystem based on [this](https://www.shoup.net/papers/thresh1.pdf) paper implemented in C++ using the [Botan library](https://github.com/randombit/botan). 
 
 # Idea
-First, a public key and n private keys are generated and the private keys will be distributed to n parties. The public key can be used to encrypt a message and to decrypt, k parties holding a private key have to cooperate. They each create a decryption share using their respective private key and then use k decryption shares to reconstruct the original message.
+First, we generate a public key and n private keys and distribute the private keys to n parties. The public key will be used to encrypt a message and k parties holding a private key have to cooperate in order to decrypt the ciphertext. They each create a decryption share using their respective private key and then use k decryption shares to reconstruct the original message.
 
 # Usage
 For a demo project, take a look at main.cpp
