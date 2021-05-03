@@ -89,7 +89,7 @@ int main(int argc, char* argv[]) {
 	}
 	
 	// select k random private keys
-	//random_unique(ids.begin(), ids.end(), k);
+	random_unique(ids.begin(), ids.end(), k);
 
 	// create k decryption shares
 	std::vector<std::vector<uint8_t>> dec_shares;
