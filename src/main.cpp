@@ -5,12 +5,13 @@
  * 
  */
 
-#include "tdh2.h"
+#include "tdh2_keys.h"
 #include <botan/auto_rng.h>
 #include <botan/bigint.h>
 #include <botan/der_enc.h>
 #include <iostream>
 #include "timer.h"
+#include "tdh2_block.h"
 
 /**
  * Randomly shuffle array
@@ -46,6 +47,9 @@ std::string hex2string(std::vector<uint8_t> hex_arr) {
 }
 
 int main(int argc, char* argv[]) {
+	std::string plaintext = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed vulputate, turpis a tempor laoreet, mauris lacus condimentum tellus, a tristique dolor turpis non quam. Donec elementum luctus nunc eget ultricies. Vestibulum pellentesque quam at mollis integer.";
+
+	
 	Timer timer;
 	std::unique_ptr<Botan::RandomNumberGenerator> rng(new Botan::AutoSeeded_RNG);
 
@@ -55,8 +59,7 @@ int main(int argc, char* argv[]) {
 
 	std::unique_ptr<Botan::DL_Group> group(new Botan::DL_Group(p,q,g)); 
 	
-	std::string plaintext = "this is a plaintext message";
-	std::vector<uint8_t> msg(plaintext.data(), plaintext.data() + plaintext.size());
+	Botan::secure_vector<uint8_t> msg(plaintext.data(), plaintext.data() + plaintext.size());
 	uint8_t label[20] = "this is a label";
 
 	std::cout << "message: " << plaintext << "\n";
@@ -76,12 +79,16 @@ int main(int argc, char* argv[]) {
 	// test private key encoding/decoding
 	privateKeys[0] = Botan::TDH2_PrivateKey(privateKeys[0].BER_encode(password), password);
 
-	// encrypt using public key
-	timer.start("\nencryption time");
-	std::vector<uint8_t> encryption = publicKey.encrypt(msg, label, *rng.get());
+	// encrypt using block encryption
+	Botan::TDH2_Block_Encryptor enc(publicKey);
+	timer.start("\nheader generation time");
+	Botan::secure_vector<uint8_t> header = enc.begin(*rng.get(), label);
 	timer.stop();
 
-	std::cout << "encryption: " << Botan::hex_encode(encryption) << "\n\n";
+	timer.start("block encryption time");
+	Botan::secure_vector<uint8_t> block1 = enc.update(msg);
+	timer.stop();
+	std::cout << "encryption: " << Botan::hex_encode(block1) << "\n\n";
 	
 	std::vector<int> ids;
 	for(Botan::TDH2_PrivateKey pk : privateKeys) {
@@ -97,15 +104,20 @@ int main(int argc, char* argv[]) {
 	for(int i = 0; i < k; ++i) {
 		std::cout << "using key [" << ids.at(i) << "] to create decryption share, ";
 		timer.start("time");
-		dec_shares.push_back(privateKeys.at(ids.at(i) - 1).decrypt_share(encryption, *rng.get()));
+		dec_shares.push_back(privateKeys.at(ids.at(i) - 1).create_share(unlock(header), *rng.get()));
 		timer.stop();
 	}
 
 	// combine decryption shares to get original message back
+	Botan::TDH2_Block_Decryptor dec(privateKeys[0]);
 	timer.start("\nshare combination time");
-	std::vector<uint8_t> recovered_message = privateKeys.at(0).combine_shares(encryption, dec_shares);
+	dec.begin(dec_shares, header);
 	timer.stop();
-	std::cout << "recovered message: " << hex2string(recovered_message) << "\n";
+
+	timer.start("block 1 decryption time");
+	Botan::secure_vector<uint8_t> recovered_message = dec.update(block1);
+	timer.stop();
+	std::cout << "recovered message: " << hex2string(unlock(recovered_message)) << "\n";
 
 	return 0;
 }

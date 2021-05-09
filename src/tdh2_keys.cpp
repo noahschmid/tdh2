@@ -4,7 +4,7 @@
  * (C) 2021 Noah Schmid
  */
 
-#include "tdh2.h"
+#include "tdh2_keys.h"
 #include <botan/der_enc.h>
 #include <botan/dlies.h>
 #include <botan/numthry.h>
@@ -75,7 +75,7 @@ namespace Botan {
 	 * @param q modulus
 	 * @return hash (value in Zq) 
 	 */
-	BigInt h2(std::vector<uint8_t> m1, uint8_t m2[20], BigInt g1, BigInt g2, BigInt g3, BigInt g4, BigInt q) {
+	BigInt TDH2_PublicKey::calc_e(std::vector<uint8_t> m1, uint8_t m2[20], BigInt g1, BigInt g2, BigInt g3, BigInt g4) {
 		std::unique_ptr<HashFunction> hash(HashFunction::create("SHA-256"));
 		secure_vector<uint8_t> data(6*hash->output_length());
 
@@ -112,10 +112,10 @@ namespace Botan {
 		hash->update(data);
 		Botan::secure_vector<uint8_t> h = hash->final();
 
-		if(q.bits() > hash->output_length() * 4) {
+		if(m_group.q_bits() > hash->output_length() * 4) {
 			Botan::secure_vector<uint8_t> g = h;
 
-			for(BigInt i = 1; i < ceil((q.bits() - hash->output_length()*4)/hash->output_length()*8); ++i) {
+			for(BigInt i = 1; i < ceil((m_group.q_bits() - hash->output_length()*4)/hash->output_length()*8); ++i) {
 				buf = g;
 				buf.insert(buf.end(), i.data(), i.data() + i.size());
 				hash->update(buf);
@@ -126,7 +126,7 @@ namespace Botan {
 			}
 		}
 
-		return BigInt(h) % q;
+		return BigInt(h) % m_group.get_q();
 	}
 
 	TDH2_PublicKey::TDH2_PublicKey(const TDH2_PublicKey &publicKey) {
@@ -219,50 +219,6 @@ namespace Botan {
 		return label;
 	}
 
-	std::vector<uint8_t> TDH2_PublicKey::encrypt(std::vector<uint8_t> msg, uint8_t label[20], RandomNumberGenerator& rng) {
-		BigInt r(BigInt::random_integer(rng, 2, m_group.get_q() - 1));
-
-		std::unique_ptr<Botan::KDF> kdf(Botan::KDF::create("HKDF(SHA-256)"));
-
-		// calculate secret value
-		const SymmetricKey secret_value(m_group.power_b_p(m_y, r, m_group.q_bits()).to_hex_string());
-
-		const secure_vector<uint8_t> secret_keys = kdf->derive_key(msg.size(), secret_value.bits_of());
-
-		if (secret_keys.size() != msg.size()) {
-			throw Encoding_Error("TDH2: KDF did not provide sufficient output");
-		}
-
-		const size_t cipher_key_len = msg.size();
-
-		xor_buf(msg, secret_keys, cipher_key_len);
-
-		secure_vector<uint8_t> out;
-		BigInt l(label, 20);
-		BigInt c(msg.data(), msg.size());
-
-		BigInt s(rng, m_group.q_bits() - 1);
-		BigInt u = m_group.power_g_p(r);
-		BigInt u_hat = m_group.power_b_p(m_g_hat, r, m_group.q_bits());
-		
-		BigInt w = m_group.power_g_p(s);
-		BigInt w_hat = m_group.power_b_p(m_g_hat, s, m_group.q_bits());
-		BigInt e = h2(msg, label, u, w, u_hat, w_hat, group_q());
-		BigInt f = m_group.mod_q(s + m_group.multiply_mod_q(r, e));
-
-		DER_Encoder enc(out);
-		enc.start_sequence()
-			.encode(l)
-			.encode(c)
-			.encode(u)
-			.encode(u_hat)
-			.encode(e)
-			.encode(f)
-			.end_cons();
-
-		return unlock(out); // (l, c, u, u_hat, e, f)
-	}
-
 	bool TDH2_PublicKey::verify_share(std::vector<uint8_t> share, std::vector<uint8_t> encryption) {
 		if(share.size() < 5)
 			return false;
@@ -275,7 +231,6 @@ namespace Botan {
 
 		dec.start_sequence()
 		.decode(l)
-		.decode(c)
 		.decode(u)
 		.decode(u_hat)
 		.decode(e)
@@ -283,8 +238,7 @@ namespace Botan {
 
 		std::vector<uint8_t> label(l.bytes());
 		l.binary_encode(label.data());
-		std::vector<uint8_t> cipher(c.bytes()); 
-		c.binary_encode(cipher.data());
+		std::vector<uint8_t> cipher; 
 
 		BigInt w(m_group.multiply_mod_p(m_group.power_g_p(f, m_group.q_bits()), 
 			m_group.inverse_mod_p(m_group.power_b_p(u, e, m_group.q_bits()))));
@@ -298,7 +252,7 @@ namespace Botan {
 
 		size_t valid = share.at(4);
 
-		if (e == h2(cipher, label.data(), u, w, u_hat, w_hat, m_group.get_q())) {
+		if (e == calc_e(cipher, label.data(), u, w, u_hat, w_hat)) {
 			BigInt hi(m_h.at((int)(id - 1)));
 
 			BigInt ui, ei, fi;
@@ -468,13 +422,12 @@ namespace Botan {
 		return partialKeys;
 	}
 
-	std::vector<uint8_t> TDH2_PrivateKey::decrypt_share(std::vector<uint8_t> encryption, RandomNumberGenerator &rng) {
+	std::vector<uint8_t> TDH2_PrivateKey::create_share(std::vector<uint8_t> encryption, RandomNumberGenerator &rng) {
 		BER_Decoder dec(encryption.data(), encryption.size());
-		BigInt u, u_hat, e, f, c, l;
+		BigInt u, u_hat, e, f, l;
 
 		dec.start_sequence()
 		.decode(l)
-		.decode(c)
 		.decode(u)
 		.decode(u_hat)
 		.decode(e)
@@ -482,8 +435,6 @@ namespace Botan {
 
 		std::vector<uint8_t> label(l.bytes());
 		l.binary_encode(label.data());
-		std::vector<uint8_t> cipher(c.bytes()); 
-		c.binary_encode(cipher.data());
 
 		f = m_group.mod_q(f);
 		BigInt w(m_group.multiply_mod_p(m_group.power_g_p(f, m_group.q_bits()), 
@@ -494,8 +445,9 @@ namespace Botan {
 
 		uint8_t valid = 0;
 		std::vector<uint8_t> share;
+		std::vector<uint8_t> cipher;
 
-		if (e == h2(cipher, label.data(), u, w, u_hat, w_hat, m_group.get_q())) {
+		if (e == calc_e(cipher, label.data(), u, w, u_hat, w_hat)) {
 			valid = 1;
 			BigInt ui(m_group.power_b_p(u, m_xi, m_group.q_bits()));
 			BigInt si(BigInt::random_integer(rng, 2, m_group.get_q() - 1));
@@ -522,82 +474,5 @@ namespace Botan {
 		share.insert(share.begin(), (uint8_t)(m_id >> 24));
 				
 		return share; // (id, 1, ui, ei, fi) || (id, 0)
-	}
-
-	std::vector<uint8_t> TDH2_PrivateKey::combine_shares(std::vector<uint8_t> encryption, std::vector<std::vector<uint8_t>> shares) {
-		if (get_k() > shares.size())
-			throw Invalid_Argument("TDH2: Not enough decryption shares to reconstruct message");
-		
-		std::vector<uint32_t> ids;
-
-		for (int i = 0; i != shares.size(); ++i) {
-			uint32_t id = ((uint32_t)shares.at(i).at(0) << 24) 	|
-					 	((uint32_t)shares.at(i).at(1)  << 16) 	|
-					 	((uint32_t)shares.at(i).at(2)  << 8) 	|
-					 	((uint32_t)shares.at(i).at(3)  << 0);
-
-
-			if(!verify_share(shares.at(i), encryption)) 
-				return std::vector<uint8_t>();
-			
-
-			if(shares.at(i).at(4) == 0) 
-				return std::vector<uint8_t>();
-			
-			ids.push_back(id);
-		}
-		
-		BigInt rG(1);
-		BigInt q(m_group.get_q());
-		for (int k = 0; k != shares.size(); ++k) {
-			BigInt i (ids.at(k));
-			BigInt l(1);
-
-			for(int m = 0; m != ids.size(); ++m) {
-				BigInt j(ids.at(m));
-				if(i != j) {
-					l = m_group.multiply_mod_q(
-							m_group.multiply_mod_q(m_group.mod_q(j), 
-							m_group.inverse_mod_q(m_group.mod_q((j - i)))), l);
-				}
-			}
-
-			BigInt ui;
-			BER_Decoder dec(shares.at(k).data() + 5, shares.at(k).size() - 5);
-			dec.start_sequence().decode(ui);
-			
-			rG = m_group.multiply_mod_p(m_group.power_b_p(ui, l, m_group.q_bits()), rG);
-		}
-		
-		std::unique_ptr<Botan::RandomNumberGenerator> rng(new Botan::AutoSeeded_RNG);
-		DH_PrivateKey key(*rng.get(), get_group(), 1);
-		secure_vector<uint8_t> secret_key(rG.bytes());
-		rG.binary_encode(secret_key.data());
-
-		// calculate secret value
-		std::unique_ptr<Botan::KDF> kdf(Botan::KDF::create("HKDF(SHA-256)"));
-
-		BER_Decoder dec(encryption);
-		BigInt c, l;
-		dec.start_sequence()
-		.decode(l)
-		.decode(c);
-
-		std::vector<uint8_t> cipher(c.bytes());
-		c.binary_encode(cipher.data());
-
-		const size_t ciphertext_len = cipher.size();
-
-		// derive secret key from secret value
-		secure_vector<uint8_t> secret_keys = kdf->derive_key(ciphertext_len, secret_key);
-
-		if(secret_keys.size() != ciphertext_len) {
-			throw Encoding_Error("TDH2: KDF did not provide sufficient output");
-		}
-
-		// decrypt
-		xor_buf(cipher, secret_keys.data(), ciphertext_len);
-
-		return cipher;
 	}
 }

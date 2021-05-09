@@ -4,10 +4,9 @@
 *
 */
 
-#ifndef BOTAN_TDH2_H_
-#define BOTAN_TDH2_H_
+#ifndef BOTAN_TDH2_KEYS_H_
+#define BOTAN_TDH2_KEYS_H_
 
-#include <botan/secmem.h>
 #include <botan/dh.h>
 #include <botan/bigint.h>
 #include <stdlib.h>
@@ -23,6 +22,8 @@ namespace Botan {
 	public:
 		std::string algo_name() const override { return "TDH2"; }
 		DL_Group::Format group_format() const override { return DL_Group_Format::ANSI_X9_42; }
+
+		TDH2_PublicKey() = default;
 
 		/**
 		 * Create a public key
@@ -45,17 +46,6 @@ namespace Botan {
 		 * @param publicKey public key instance
 		 */
 		TDH2_PublicKey(const TDH2_PublicKey &publicKey);
-
-		/**
-		 * Encrypt a message
-		 * @param msg the message to encrypt
-		 * @param label label that won't get encrypted
-		 * @param rng the random number generator to use
-		 * @return encrypted message
-		 */
-		std::vector<uint8_t> encrypt(std::vector<uint8_t> msg,
-			uint8_t label[20],
-			RandomNumberGenerator& rng);
 
 		/**
 		 * Determine whether a decryption share was correctly generated from a encrypted message
@@ -93,8 +83,9 @@ namespace Botan {
 		 */
 		std::vector<uint8_t> subject_public_key() const;
 
+		BigInt calc_e(std::vector<uint8_t> m1, uint8_t m2[20], BigInt g1, BigInt g2, BigInt g3, BigInt g4);
+
 	protected:
-		TDH2_PublicKey() = default;
 		BigInt m_g_hat;
 		uint8_t m_k;
 		std::vector<BigInt> m_h;
@@ -106,6 +97,8 @@ namespace Botan {
 	 */
 	class TDH2_PrivateKey final : public TDH2_PublicKey {
 	public:
+		TDH2_PrivateKey() = default;
+
 		/**
 		 * Create a private key
 		 * @param id id of private key
@@ -143,15 +136,7 @@ namespace Botan {
 		 * @param encryption the encrypted message
 		 * @param rng the random number generator to use
 		 */
-		std::vector<uint8_t> decrypt_share(std::vector<uint8_t> encryption, RandomNumberGenerator& rng);
-
-		/**
-		 * Combine decryption shares to reconstruct message
-		 * @param encryption the encrypted message
-		 * @param shares vector of decryption shares
-		 * @return decrypted message if all decryption shares are valid, empty vector otherwise
-		 */
-		std::vector<uint8_t> combine_shares(std::vector<uint8_t> encryption, std::vector<std::vector<uint8_t>> shares);
+		std::vector<uint8_t> create_share(std::vector<uint8_t> encryption, RandomNumberGenerator& rng);
 
 		/**
 		 * @return public value y = g^x mod p
