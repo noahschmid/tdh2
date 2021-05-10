@@ -10,6 +10,7 @@
 #include <botan/bigint.h>
 #include <botan/der_enc.h>
 #include <iostream>
+#include <fstream>
 #include "timer.h"
 #include "tdh2_block.h"
 
@@ -46,9 +47,27 @@ std::string hex2string(std::vector<uint8_t> hex_arr) {
 	return newString;
 }
 
-int main(int argc, char* argv[]) {
-	std::string plaintext = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed vulputate, turpis a tempor laoreet, mauris lacus condimentum tellus, a tristique dolor turpis non quam. Donec elementum luctus nunc eget ultricies. Vestibulum pellentesque quam at mollis integer.";
+void write_to_file(std::string filename, Botan::secure_vector<uint8_t>& message) {
+	std::fstream out(filename, std::ios::out | std::ios::binary);
+	for(uint8_t byte_buf : message) {
+		out << byte_buf;	
+	}
+}
 
+int main(int argc, char* argv[]) {
+
+	std::string filename("../raising_demo.mp4");
+
+	std::ifstream in(filename, std::ios::binary);
+	Botan::secure_vector<uint8_t> message;
+	
+	uint8_t buf;
+	in >> std::noskipws;
+
+	std::cout << "reading " << filename << "...\n";
+	while(in >> buf) {
+		message.push_back(buf);
+	}
 	
 	Timer timer;
 	std::unique_ptr<Botan::RandomNumberGenerator> rng(new Botan::AutoSeeded_RNG);
@@ -57,14 +76,13 @@ int main(int argc, char* argv[]) {
 	Botan::BigInt q("0xDAF370A2F6328096F29F718466E0FB052596C9D1C284C2C90260947763615AFB");
 	Botan::BigInt g("0x74C509449CE926EE27AFC4AE6076EB046840C1A639A79ABD922937DED193C7681B0E2F154019555E5083968CC8461DBC26B43700171350F4C76665E741B80C2535689B67A89E5E47CC600E7A11A66CD7C0057D677D6F1F3922BE8290BE4CF43CF5841157F6364FF9059E29A5068EFAAD5F10CC6E6712846AE2827CE0042531D069C1D7CD956E65717FB1E17C3C9B1A8AA8901326A75A8E2527B32BCE358ADB3C4268904FAF461F85C1D00A76E50407070865859B6F344815B224D1B52B56B8F96872FFD5769D7FE7E67B4196ECF5412EE87383A1FF3CC70660394D54BC39A2D75916FC6F5AD63031EE6FEE03E48A726920347C3EF61FFB79DCC62F82C7FC4F2");
 
-	std::unique_ptr<Botan::DL_Group> group(new Botan::DL_Group(p,q,g)); 
-	
-	Botan::secure_vector<uint8_t> msg(plaintext.data(), plaintext.data() + plaintext.size());
+	std::unique_ptr<Botan::DL_Group> group(new Botan::DL_Group("modp/ietf/2048")); 
+
 	uint8_t label[20] = "this is a label";
 
-	std::cout << "message: " << plaintext << "\n";
+	//std::cout << "message: " << plaintext << "\n";
 
-	const int n = 500, k = 50;
+	const int n = 100, k = 67;
 
 	// generate private/public keypair
 	timer.start("key generation time");
@@ -80,20 +98,22 @@ int main(int argc, char* argv[]) {
 	privateKeys[0] = Botan::TDH2_PrivateKey(privateKeys[0].BER_encode(password), password);
 
 	// encrypt using block encryption
-	Botan::TDH2_Block_Encryptor enc(publicKey);
+	Botan::TDH2_Block_Encryptor enc(publicKey, *rng.get());
 	timer.start("\nheader generation time");
-	Botan::secure_vector<uint8_t> header = enc.begin(*rng.get(), label);
+	Botan::secure_vector<uint8_t> header = enc.begin(label);
 	timer.stop();
 
 	timer.start("block encryption time");
-	Botan::secure_vector<uint8_t> block1 = enc.update(msg);
+	enc.finish(message);
 	timer.stop();
-	std::cout << "encryption: " << Botan::hex_encode(block1) << "\n\n";
+
+	write_to_file("cipher.txt", message);
 	
 	std::vector<int> ids;
 	for(Botan::TDH2_PrivateKey pk : privateKeys) {
 		ids.push_back(pk.get_id());
 	}
+	
 	
 	// select k random private keys
 	random_unique(ids.begin(), ids.end(), k);
@@ -115,9 +135,10 @@ int main(int argc, char* argv[]) {
 	timer.stop();
 
 	timer.start("block 1 decryption time");
-	Botan::secure_vector<uint8_t> recovered_message = dec.update(block1);
+	dec.finish(message);
 	timer.stop();
-	std::cout << "recovered message: " << hex2string(unlock(recovered_message)) << "\n";
-
+	
+	write_to_file("decrypted.mp4", message);
+	
 	return 0;
 }

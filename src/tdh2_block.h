@@ -8,16 +8,17 @@
 namespace Botan {
 class TDH2_Block_Encryptor {
     public:
-    TDH2_Block_Encryptor(TDH2_PublicKey& key);
+    TDH2_Block_Encryptor(TDH2_PublicKey& key, RandomNumberGenerator& rng);
 
-    Botan::secure_vector<uint8_t> begin(RandomNumberGenerator& rng, uint8_t label[20]);
-    Botan::secure_vector<uint8_t> update(secure_vector<uint8_t> block);
-    Botan::secure_vector<uint8_t> finish(secure_vector<uint8_t> block);
+    Botan::secure_vector<uint8_t> begin( uint8_t label[20]);
+    void update(secure_vector<uint8_t>& block);
+    void finish(secure_vector<uint8_t>& block);
     void reset();
 
     private:
     TDH2_PublicKey m_public_key;
-    std::unique_ptr<Botan::Cipher_Mode> m_enc;
+    std::unique_ptr<Cipher_Mode> m_enc;
+    RandomNumberGenerator& m_rng;
 };
 
 
@@ -26,10 +27,10 @@ class TDH2_Block_Decryptor {
     TDH2_Block_Decryptor(TDH2_PrivateKey& key);
 
     void begin(std::vector<std::vector<uint8_t>> shares, Botan::secure_vector<uint8_t> header);
-    Botan::secure_vector<uint8_t> update(secure_vector<uint8_t> block);
-    Botan::secure_vector<uint8_t> finish(secure_vector<uint8_t> block);
+    void update(secure_vector<uint8_t>& block);
+    void finish(secure_vector<uint8_t>& block);
     void reset();
-    
+
     private:
     TDH2_PrivateKey m_private_key;
     std::unique_ptr<Botan::Cipher_Mode> m_dec;

@@ -7,13 +7,14 @@
 #include <botan/auto_rng.h>
 
 namespace Botan {
-    TDH2_Block_Encryptor::TDH2_Block_Encryptor(TDH2_PublicKey& key) {
+    TDH2_Block_Encryptor::TDH2_Block_Encryptor(TDH2_PublicKey& key, RandomNumberGenerator& rng) : 
+	m_rng(rng) {
         m_public_key = key;
         m_enc = Botan::Cipher_Mode::create("AES-128/CBC/PKCS7", Botan::ENCRYPTION);
     }
 
-    Botan::secure_vector<uint8_t> TDH2_Block_Encryptor::begin(RandomNumberGenerator& rng, uint8_t label[20]) {
-        BigInt r(BigInt::random_integer(rng, 2, m_public_key.group_q() - 1));
+    Botan::secure_vector<uint8_t> TDH2_Block_Encryptor::begin(uint8_t label[20]) {
+        BigInt r(BigInt::random_integer(m_rng, 2, m_public_key.group_q() - 1));
 
 		std::unique_ptr<Botan::KDF> kdf(Botan::KDF::create("HKDF(SHA-256)"));
 
@@ -35,7 +36,7 @@ namespace Botan {
 
         size_t q_bits = m_public_key.get_group().q_bits();
 
-		BigInt s(rng, q_bits - 1);
+		BigInt s(m_rng, q_bits - 1);
 		BigInt u = m_public_key.get_group().power_g_p(r);
 		BigInt u_hat = m_public_key.get_group().power_b_p(m_public_key.get_g_hat(), r, q_bits);
 		
@@ -56,15 +57,12 @@ namespace Botan {
 		return (out); // (l, u, u_hat, e, f)
     }
 
-    Botan::secure_vector<uint8_t> TDH2_Block_Encryptor::update(secure_vector<uint8_t> block) {
+    void TDH2_Block_Encryptor::update(secure_vector<uint8_t>& block) {
         m_enc->update(block);
-        return block;
     }
 
-    Botan::secure_vector<uint8_t> TDH2_Block_Encryptor::finish(secure_vector<uint8_t> block) {
+    void TDH2_Block_Encryptor::finish(secure_vector<uint8_t>& block) {
         m_enc->finish(block);
-
-        return block;
     }
 
     void TDH2_Block_Encryptor::reset() {
@@ -147,15 +145,12 @@ namespace Botan {
         m_dec->start();
     };
 
-    Botan::secure_vector<uint8_t> TDH2_Block_Decryptor::update(secure_vector<uint8_t> block) {
+    void TDH2_Block_Decryptor::update(secure_vector<uint8_t>& block) {
         m_dec->update(block);
-        return block;
     };
 
-    Botan::secure_vector<uint8_t> TDH2_Block_Decryptor::finish(secure_vector<uint8_t> block) {
+    void TDH2_Block_Decryptor::finish(secure_vector<uint8_t>& block) {
         m_dec->finish(block);
-
-        return block;
     };
 
     void TDH2_Block_Decryptor::reset() {
