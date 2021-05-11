@@ -31,7 +31,7 @@ namespace Botan {
         m_enc->start();
 
         secure_vector<uint8_t> out;
-		secure_vector<uint8_t> msg;
+		std::vector<uint8_t> msg;
         BigInt l(label, 20);
 
         size_t q_bits = m_public_key.get_group().q_bits();
@@ -87,7 +87,7 @@ namespace Botan {
 					 	((uint32_t)shares.at(i).at(3)  << 0);
 
 
-			if(!m_private_key.verify_share(shares.at(i), unlock(header))) 
+			if(!m_private_key.verify_share(shares.at(i), (header))) 
 				throw Invalid_Argument("TDH2: invalid share");
 			
 

@@ -53,7 +53,7 @@ namespace Botan {
 		 * @param encryption the encrypted message the share belongs to 
 		 * @return true if decryption share is valid, false else
 		 */
-		bool verify_share(std::vector<uint8_t> share, std::vector<uint8_t> encryption);
+		bool verify_share(std::vector<uint8_t> share, secure_vector<uint8_t> encryption);
 
 
 		bool verify_cipher(secure_vector<uint8_t> encryption);
@@ -99,17 +99,16 @@ namespace Botan {
 		 * @param q modulus
 		 * @return hash (value in Zq) 
 		 */
-		BigInt get_e(secure_vector<uint8_t> m1, uint8_t m2[20], BigInt g1, BigInt g2, BigInt g3, BigInt g4);
+		BigInt get_e(std::vector<uint8_t> m1, uint8_t m2[20], BigInt g1, BigInt g2, BigInt g3, BigInt g4);
 
 		/**
 		 * Hash function used for zero knowledge proofs to validate decryption share. Hashes (g1, g2, g3) -> Zq
 		 * @param g1 value in Zp
 		 * @param g2 value in Zp
 		 * @param g3 value in Zp
-		 * @param q modulus
 		 * @return hash (value in Zq) 
 		 */
-		BigInt get_ei(BigInt g1, BigInt g2, BigInt g3, BigInt q);
+		BigInt get_ei(BigInt g1, BigInt g2, BigInt g3);
 
 	protected:
 		BigInt m_g_hat;
@@ -162,7 +161,8 @@ namespace Botan {
 		 * @param encryption the encrypted message
 		 * @param rng the random number generator to use
 		 */
-		std::vector<uint8_t> create_share(secure_vector<uint8_t> encryption, RandomNumberGenerator& rng);
+		std::vector<uint8_t> create_share(secure_vector<uint8_t> encryption, 
+			RandomNumberGenerator& rng);
 
 		/**
 		 * @return public value y = g^x mod p
@@ -185,8 +185,18 @@ namespace Botan {
 		 */
 		int get_id() { return m_id; }
 
-
-		void combine_shares(secure_vector<uint8_t> &encryption, std::vector<std::vector<uint8_t>> shares); 
+		/**
+		 * Combine decryption shares to reconstruct message
+		 * @param encryption the encrypted message
+		 * @param shares vector of decryption shares
+		 * @param verify states whether encryption should get verified before combining the shares
+		 * @return decrypted message if all decryption shares are valid, empty vector otherwise
+		 * 
+		 * @throws InvalidArgument if encryption or share is invalid
+		 */
+		void combine_shares(secure_vector<uint8_t> &encryption, 
+			std::vector<std::vector<uint8_t>> shares, 
+			bool verify = true); 
 
 	private:
 		BigInt m_xi;
