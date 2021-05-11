@@ -59,15 +59,16 @@ int main(int argc, char* argv[]) {
 	std::string filename("../raising_demo.mp4");
 
 	std::ifstream in(filename, std::ios::binary);
-	Botan::secure_vector<uint8_t> message;
-	
+	std::string plaintext = "This is a plaintext message";
+	Botan::secure_vector<uint8_t> message(plaintext.data(), plaintext.data() + plaintext.size());
+	/*
 	uint8_t buf;
 	in >> std::noskipws;
 
 	std::cout << "reading " << filename << "...\n";
 	while(in >> buf) {
 		message.push_back(buf);
-	}
+	}*/
 	
 	Timer timer;
 	std::unique_ptr<Botan::RandomNumberGenerator> rng(new Botan::AutoSeeded_RNG);
@@ -79,8 +80,6 @@ int main(int argc, char* argv[]) {
 	std::unique_ptr<Botan::DL_Group> group(new Botan::DL_Group("modp/ietf/2048")); 
 
 	uint8_t label[20] = "this is a label";
-
-	//std::cout << "message: " << plaintext << "\n";
 
 	const int n = 100, k = 67;
 
@@ -97,6 +96,7 @@ int main(int argc, char* argv[]) {
 	// test private key encoding/decoding
 	privateKeys[0] = Botan::TDH2_PrivateKey(privateKeys[0].BER_encode(password), password);
 
+	/*
 	// encrypt using block encryption
 	Botan::TDH2_Block_Encryptor enc(publicKey, *rng.get());
 	timer.start("\nheader generation time");
@@ -108,12 +108,16 @@ int main(int argc, char* argv[]) {
 	timer.stop();
 
 	write_to_file("cipher.txt", message);
+	*/
+
+	timer.start("\nencryption time");
+	publicKey.encrypt(message, label, *rng.get());
+	timer.stop();
 	
 	std::vector<int> ids;
 	for(Botan::TDH2_PrivateKey pk : privateKeys) {
 		ids.push_back(pk.get_id());
 	}
-	
 	
 	// select k random private keys
 	random_unique(ids.begin(), ids.end(), k);
@@ -124,11 +128,12 @@ int main(int argc, char* argv[]) {
 	for(int i = 0; i < k; ++i) {
 		std::cout << "using key [" << ids.at(i) << "] to create decryption share, ";
 		timer.start("time");
-		dec_shares.push_back(privateKeys.at(ids.at(i) - 1).create_share(unlock(header), *rng.get()));
+		dec_shares.push_back(privateKeys.at(ids.at(i) - 1).create_share(message, *rng.get()));
 		timer.stop();
 	}
 
 	// combine decryption shares to get original message back
+	/*
 	Botan::TDH2_Block_Decryptor dec(privateKeys[0]);
 	timer.start("\nshare combination time");
 	dec.begin(dec_shares, header);
@@ -138,7 +143,12 @@ int main(int argc, char* argv[]) {
 	dec.finish(message);
 	timer.stop();
 	
-	write_to_file("decrypted.mp4", message);
+	write_to_file("decrypted.mp4", message);*/
+
+	timer.start("\nshare combination time");
+	privateKeys.at(0).combine_shares(message, dec_shares);
+	timer.stop();
+	std::cout << "recovered message: " << hex2string(unlock(message)) << "\n";
 	
 	return 0;
 }

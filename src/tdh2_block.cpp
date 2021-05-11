@@ -31,7 +31,7 @@ namespace Botan {
         m_enc->start();
 
         secure_vector<uint8_t> out;
-		std::vector<uint8_t> msg;
+		secure_vector<uint8_t> msg;
         BigInt l(label, 20);
 
         size_t q_bits = m_public_key.get_group().q_bits();
@@ -42,7 +42,7 @@ namespace Botan {
 		
 		BigInt w = m_public_key.get_group().power_g_p(s);
 		BigInt w_hat = m_public_key.get_group().power_b_p(m_public_key.get_g_hat(), s, q_bits);
-		BigInt e = m_public_key.calc_e(msg, label, u, w, u_hat, w_hat);
+		BigInt e = m_public_key.get_e(msg, label, u, w, u_hat, w_hat);
 		BigInt f = m_public_key.get_group().mod_q(s + m_public_key.get_group().multiply_mod_q(r, e));
 
 		DER_Encoder enc(out);

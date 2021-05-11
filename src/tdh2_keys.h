@@ -55,6 +55,9 @@ namespace Botan {
 		 */
 		bool verify_share(std::vector<uint8_t> share, std::vector<uint8_t> encryption);
 
+
+		bool verify_cipher(secure_vector<uint8_t> encryption);
+
 		/**
 		 * @return label of encrypted message
 		 */
@@ -83,7 +86,30 @@ namespace Botan {
 		 */
 		std::vector<uint8_t> subject_public_key() const;
 
-		BigInt calc_e(std::vector<uint8_t> m1, uint8_t m2[20], BigInt g1, BigInt g2, BigInt g3, BigInt g4);
+		void encrypt(secure_vector<uint8_t> &msg, uint8_t label[20], RandomNumberGenerator& rng); 
+
+		/**
+		 * Hash function used for zero knowledge proofs to validate decryption request. Hashes (m1, m2, g1, g2, g3, g4) -> Zq
+		 * @param m1 message 
+		 * @param m2 label
+		 * @param g1 value in Zp
+		 * @param g2 value in Zp
+		 * @param g3 value in Zp
+		 * @param g4 value in Zp
+		 * @param q modulus
+		 * @return hash (value in Zq) 
+		 */
+		BigInt get_e(secure_vector<uint8_t> m1, uint8_t m2[20], BigInt g1, BigInt g2, BigInt g3, BigInt g4);
+
+		/**
+		 * Hash function used for zero knowledge proofs to validate decryption share. Hashes (g1, g2, g3) -> Zq
+		 * @param g1 value in Zp
+		 * @param g2 value in Zp
+		 * @param g3 value in Zp
+		 * @param q modulus
+		 * @return hash (value in Zq) 
+		 */
+		BigInt get_ei(BigInt g1, BigInt g2, BigInt g3, BigInt q);
 
 	protected:
 		BigInt m_g_hat;
@@ -136,7 +162,7 @@ namespace Botan {
 		 * @param encryption the encrypted message
 		 * @param rng the random number generator to use
 		 */
-		std::vector<uint8_t> create_share(std::vector<uint8_t> encryption, RandomNumberGenerator& rng);
+		std::vector<uint8_t> create_share(secure_vector<uint8_t> encryption, RandomNumberGenerator& rng);
 
 		/**
 		 * @return public value y = g^x mod p
@@ -158,6 +184,9 @@ namespace Botan {
 		 * Get private key id
 		 */
 		int get_id() { return m_id; }
+
+
+		void combine_shares(secure_vector<uint8_t> &encryption, std::vector<std::vector<uint8_t>> shares); 
 
 	private:
 		BigInt m_xi;
