@@ -10,7 +10,7 @@ class TDH2_Block_Encryptor {
     public:
     TDH2_Block_Encryptor(TDH2_PublicKey& key, RandomNumberGenerator& rng);
 
-    Botan::secure_vector<uint8_t> begin( uint8_t label[20]);
+    std::vector<uint8_t> begin( uint8_t label[20]);
     void update(secure_vector<uint8_t>& block);
     void finish(secure_vector<uint8_t>& block);
     void reset();
@@ -26,7 +26,7 @@ class TDH2_Block_Decryptor {
     public:
     TDH2_Block_Decryptor(TDH2_PrivateKey& key);
 
-    void begin(std::vector<std::vector<uint8_t>> shares, Botan::secure_vector<uint8_t> header);
+    void begin(std::vector<std::vector<uint8_t>> shares, std::vector<uint8_t> header);
     void update(secure_vector<uint8_t>& block);
     void finish(secure_vector<uint8_t>& block);
     void reset();

@@ -56,19 +56,19 @@ void write_to_file(std::string filename, Botan::secure_vector<uint8_t>& message)
 
 int main(int argc, char* argv[]) {
 
-	//std::string filename("../raising_demo.mp4");
+	std::string filename("../raising_demo.mp4");
 
-	//std::ifstream in(filename, std::ios::binary);
+	std::ifstream in(filename, std::ios::binary);
 	std::string plaintext = "This is a plaintext message";
-	Botan::secure_vector<uint8_t> message(plaintext.data(), plaintext.data() + plaintext.size());
-	/*
+	Botan::secure_vector<uint8_t> message;
+	
 	uint8_t buf;
 	in >> std::noskipws;
 
 	std::cout << "reading " << filename << "...\n";
 	while(in >> buf) {
 		message.push_back(buf);
-	}*/
+	}
 	
 	Timer timer;
 	std::unique_ptr<Botan::RandomNumberGenerator> rng(new Botan::AutoSeeded_RNG);
@@ -111,8 +111,10 @@ int main(int argc, char* argv[]) {
 	*/
 
 	timer.start("\nencryption time");
-	publicKey.encrypt(message, label, *rng.get());
+	std::vector<uint8_t> header = publicKey.encrypt(message, label, *rng.get());
 	timer.stop();
+
+	write_to_file("cipher.txt", message);
 	
 	std::vector<int> ids;
 	for(Botan::TDH2_PrivateKey pk : privateKeys) {
@@ -128,7 +130,7 @@ int main(int argc, char* argv[]) {
 	for(int i = 0; i < k; ++i) {
 		std::cout << "using key [" << ids.at(i) << "] to create decryption share, ";
 		timer.start("time");
-		dec_shares.push_back(privateKeys.at(ids.at(i) - 1).create_share(message, *rng.get()));
+		dec_shares.push_back(privateKeys.at(ids.at(i) - 1).create_share(header, *rng.get()));
 		timer.stop();
 	}
 
@@ -142,13 +144,15 @@ int main(int argc, char* argv[]) {
 	timer.start("block 1 decryption time");
 	dec.finish(message);
 	timer.stop();
+
+	*/
 	
-	write_to_file("decrypted.mp4", message);*/
+	
 
 	timer.start("\nshare combination time");
-	privateKeys.at(0).combine_shares(message, dec_shares);
+	privateKeys.at(0).combine_shares(header, message, dec_shares);
 	timer.stop();
-	std::cout << "recovered message: " << hex2string(unlock(message)) << "\n";
+	write_to_file("decrypted.mp4", message);
 	
 	return 0;
 }

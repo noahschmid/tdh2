@@ -13,7 +13,7 @@ namespace Botan {
         m_enc = Botan::Cipher_Mode::create("AES-128/CBC/PKCS7", Botan::ENCRYPTION);
     }
 
-    Botan::secure_vector<uint8_t> TDH2_Block_Encryptor::begin(uint8_t label[20]) {
+    std::vector<uint8_t> TDH2_Block_Encryptor::begin(uint8_t label[20]) {
         BigInt r(BigInt::random_integer(m_rng, 2, m_public_key.group_q() - 1));
 
 		std::unique_ptr<Botan::KDF> kdf(Botan::KDF::create("HKDF(SHA-256)"));
@@ -30,7 +30,7 @@ namespace Botan {
         m_enc->set_key(symmetric_key);
         m_enc->start();
 
-        secure_vector<uint8_t> out;
+        std::vector<uint8_t> out;
 		std::vector<uint8_t> msg;
         BigInt l(label, 20);
 
@@ -39,10 +39,14 @@ namespace Botan {
 		BigInt s(m_rng, q_bits - 1);
 		BigInt u = m_public_key.get_group().power_g_p(r);
 		BigInt u_hat = m_public_key.get_group().power_b_p(m_public_key.get_g_hat(), r, q_bits);
+
+		std::unique_ptr<HashFunction> hash(HashFunction::create("SHA-256"));
+		hash->update(msg);
+		secure_vector<uint8_t> c_hash(hash->final());
 		
 		BigInt w = m_public_key.get_group().power_g_p(s);
 		BigInt w_hat = m_public_key.get_group().power_b_p(m_public_key.get_g_hat(), s, q_bits);
-		BigInt e = m_public_key.get_e(msg, label, u, w, u_hat, w_hat);
+		BigInt e = m_public_key.get_e(c_hash.data(), label, u, w, u_hat, w_hat);
 		BigInt f = m_public_key.get_group().mod_q(s + m_public_key.get_group().multiply_mod_q(r, e));
 
 		DER_Encoder enc(out);
@@ -54,7 +58,7 @@ namespace Botan {
 			.encode(f)
 			.end_cons();
 
-		return (out); // (l, u, u_hat, e, f)
+		return out; // (l, u, u_hat, e, f)
     }
 
     void TDH2_Block_Encryptor::update(secure_vector<uint8_t>& block) {
@@ -74,7 +78,7 @@ namespace Botan {
         m_dec = Botan::Cipher_Mode::create("AES-128/CBC/PKCS7", Botan::DECRYPTION);
     }
 
-    void TDH2_Block_Decryptor::begin(std::vector<std::vector<uint8_t>> shares, Botan::secure_vector<uint8_t> header) {
+    void TDH2_Block_Decryptor::begin(std::vector<std::vector<uint8_t>> shares, std::vector<uint8_t> header) {
         if (m_private_key.get_k() > shares.size())
 			throw Invalid_Argument("TDH2: Not enough decryption shares to reconstruct message");
 		

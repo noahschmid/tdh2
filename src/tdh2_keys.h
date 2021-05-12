@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <botan/hex.h>
+#include <botan/dl_group.h>
 
 namespace Botan {
 
@@ -50,13 +51,14 @@ namespace Botan {
 		/**
 		 * Determine whether a decryption share was correctly generated from a encrypted message
 		 * @param share the decryption share to verify
-		 * @param encryption the encrypted message the share belongs to 
+		 * @param header the encrypted header the share belongs to 
 		 * @return true if decryption share is valid, false else
 		 */
-		bool verify_share(std::vector<uint8_t> share, secure_vector<uint8_t> encryption);
+		bool verify_share(std::vector<uint8_t> share, std::vector<uint8_t> header);
 
 
-		bool verify_cipher(secure_vector<uint8_t> encryption);
+		bool verify_cipher(std::vector<uint8_t> header,
+			secure_vector<uint8_t> cipher);
 
 		/**
 		 * @return label of encrypted message
@@ -86,11 +88,11 @@ namespace Botan {
 		 */
 		std::vector<uint8_t> subject_public_key() const;
 
-		void encrypt(secure_vector<uint8_t> &msg, uint8_t label[20], RandomNumberGenerator& rng); 
+		std::vector<uint8_t> encrypt(secure_vector<uint8_t> &msg, uint8_t label[20], RandomNumberGenerator& rng); 
 
 		/**
 		 * Hash function used for zero knowledge proofs to validate decryption request. Hashes (m1, m2, g1, g2, g3, g4) -> Zq
-		 * @param m1 message 
+		 * @param m1 sha-256 hash of message 
 		 * @param m2 label
 		 * @param g1 value in Zp
 		 * @param g2 value in Zp
@@ -99,7 +101,7 @@ namespace Botan {
 		 * @param q modulus
 		 * @return hash (value in Zq) 
 		 */
-		BigInt get_e(std::vector<uint8_t> m1, uint8_t m2[20], BigInt g1, BigInt g2, BigInt g3, BigInt g4);
+		BigInt get_e(uint8_t m1[32], uint8_t m2[20], BigInt g1, BigInt g2, BigInt g3, BigInt g4);
 
 		/**
 		 * Hash function used for zero knowledge proofs to validate decryption share. Hashes (g1, g2, g3) -> Zq
@@ -158,10 +160,10 @@ namespace Botan {
 
 		/**
 		 * Create a decryption share
-		 * @param encryption the encrypted message
+		 * @param header the encrypted message header
 		 * @param rng the random number generator to use
 		 */
-		std::vector<uint8_t> create_share(secure_vector<uint8_t> encryption, 
+		std::vector<uint8_t> create_share(std::vector<uint8_t> header, 
 			RandomNumberGenerator& rng);
 
 		/**
@@ -194,8 +196,9 @@ namespace Botan {
 		 * 
 		 * @throws InvalidArgument if encryption or share is invalid
 		 */
-		void combine_shares(secure_vector<uint8_t> &encryption, 
-			std::vector<std::vector<uint8_t>> shares, 
+		void combine_shares(std::vector<uint8_t> header,
+			secure_vector<uint8_t>& cipher, 
+			std::vector<std::vector<uint8_t>> shares,
 			bool verify = true); 
 
 	private:
