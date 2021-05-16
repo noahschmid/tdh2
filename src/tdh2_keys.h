@@ -57,8 +57,7 @@ namespace Botan {
 		bool verify_share(std::vector<uint8_t> share, std::vector<uint8_t> header);
 
 
-		bool verify_cipher(std::vector<uint8_t> header,
-			secure_vector<uint8_t> cipher);
+		bool verify_header(std::vector<uint8_t> header);
 
 		/**
 		 * @return label of encrypted message
@@ -87,8 +86,6 @@ namespace Botan {
 		 * @return BER encoded public key
 		 */
 		std::vector<uint8_t> subject_public_key() const;
-
-		std::vector<uint8_t> encrypt(secure_vector<uint8_t> &msg, uint8_t label[20], RandomNumberGenerator& rng); 
 
 		/**
 		 * Hash function used for zero knowledge proofs to validate decryption request. Hashes (m1, m2, g1, g2, g3, g4) -> Zq
@@ -186,20 +183,6 @@ namespace Botan {
 		 * Get private key id
 		 */
 		int get_id() { return m_id; }
-
-		/**
-		 * Combine decryption shares to reconstruct message
-		 * @param encryption the encrypted message
-		 * @param shares vector of decryption shares
-		 * @param verify states whether encryption should get verified before combining the shares
-		 * @return decrypted message if all decryption shares are valid, empty vector otherwise
-		 * 
-		 * @throws InvalidArgument if encryption or share is invalid
-		 */
-		void combine_shares(std::vector<uint8_t> header,
-			secure_vector<uint8_t>& cipher, 
-			std::vector<std::vector<uint8_t>> shares,
-			bool verify = true); 
 
 	private:
 		BigInt m_xi;

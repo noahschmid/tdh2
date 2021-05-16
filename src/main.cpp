@@ -5,14 +5,15 @@
  * 
  */
 
-#include "tdh2_keys.h"
 #include <botan/auto_rng.h>
 #include <botan/bigint.h>
 #include <botan/der_enc.h>
 #include <iostream>
 #include <fstream>
+#include <iomanip>
+#include <limits>
 #include "timer.h"
-#include "tdh2_block.h"
+#include "tdh2.h"
 
 /**
  * Randomly shuffle array
@@ -47,28 +48,98 @@ std::string hex2string(std::vector<uint8_t> hex_arr) {
 	return newString;
 }
 
+std::string hex2string(Botan::secure_vector<uint8_t> hex_arr) {
+	return hex2string(unlock(hex_arr));
+}
+
 void write_to_file(std::string filename, Botan::secure_vector<uint8_t>& message) {
 	std::fstream out(filename, std::ios::out | std::ios::binary);
+	size_t size = message.size();
+	float pos = 0;
+	int percent = 0;
+
+	int blocks = size / 100;
+
+	std::string unit(" Bytes");
+
+	if(size > 1000) {
+		size /= 1000;
+		unit = "kB";
+	}
+
+	if(size > 1000) {
+		size /= 1000;
+		unit = "MB";
+	}
+	std::cout << "\nsaving " << filename << " (" << size << unit << ")...\n";
+
 	for(uint8_t byte_buf : message) {
 		out << byte_buf;	
+		++pos;
+		if(pos == blocks) {
+			pos = 0;
+			++percent;
+			std::cout << percent << "% done.." << "\r" << std::flush;
+		}
 	}
+	out.close();
+	std::cout << "finished    \n\n";
+}
+
+void read_file(std::string filename, Botan::secure_vector<uint8_t>& message) {
+	std::ifstream in(filename, std::ios::in | std::ios::binary);
+	in.ignore( std::numeric_limits<std::streamsize>::max() );
+	std::streamsize size = in.gcount();
+	in.clear();   //  Since ignore will have set eof.
+	in.seekg( 0, std::ios_base::beg );
+
+	uint8_t buf;
+	in >> std::noskipws;
+	float pos = 0;
+	int percent = 0;
+
+	int blocks = size / 100;
+	std::string unit(" Bytes");
+
+	if(size > 1000) {
+		size /= 1000;
+		unit = "kB";
+	}
+
+	if(size > 1000) {
+		size /= 1000;
+		unit = "MB";
+	}
+
+	std::cout << "\nreading " << filename << " (" << size << unit << ")...\n";
+
+	while(in >> buf) {
+		message.push_back(buf);
+		++pos;
+		if(pos == blocks) {
+			pos = 0;
+			++percent;
+			std::cout << percent << "% done.." << "\r" << std::flush;
+		}
+	}
+
+	in.close();
+	std::cout << "finished    \n\n";
 }
 
 int main(int argc, char* argv[]) {
+	if(argc == 1) {
+		std::cout << "ERROR: please supply name of file to encrypt\n";
+		return 0;
+	}
 
-	std::string filename("../raising_demo.mp4");
+	std::cout << std::setprecision(1) << std::fixed;
 
-	std::ifstream in(filename, std::ios::binary);
-	std::string plaintext = "This is a plaintext message";
+	std::string filename(argv[1]);
+	std::string filetype = filename.substr(filename.find_last_of('.') + 1);
 	Botan::secure_vector<uint8_t> message;
 	
-	uint8_t buf;
-	in >> std::noskipws;
-
-	std::cout << "reading " << filename << "...\n";
-	while(in >> buf) {
-		message.push_back(buf);
-	}
+	read_file(filename, message);
 	
 	Timer timer;
 	std::unique_ptr<Botan::RandomNumberGenerator> rng(new Botan::AutoSeeded_RNG);
@@ -96,22 +167,14 @@ int main(int argc, char* argv[]) {
 	// test private key encoding/decoding
 	privateKeys[0] = Botan::TDH2_PrivateKey(privateKeys[0].BER_encode(password), password);
 
-	/*
 	// encrypt using block encryption
-	Botan::TDH2_Block_Encryptor enc(publicKey, *rng.get());
+	Botan::TDH2_Encryptor enc(publicKey, *rng.get());
 	timer.start("\nheader generation time");
-	Botan::secure_vector<uint8_t> header = enc.begin(label);
+	std::vector<uint8_t> header = enc.begin(label);
 	timer.stop();
 
 	timer.start("block encryption time");
 	enc.finish(message);
-	timer.stop();
-
-	write_to_file("cipher.txt", message);
-	*/
-
-	timer.start("\nencryption time");
-	std::vector<uint8_t> header = publicKey.encrypt(message, label, *rng.get());
 	timer.stop();
 
 	write_to_file("cipher.txt", message);
@@ -135,8 +198,8 @@ int main(int argc, char* argv[]) {
 	}
 
 	// combine decryption shares to get original message back
-	/*
-	Botan::TDH2_Block_Decryptor dec(privateKeys[0]);
+	
+	Botan::TDH2_Decryptor dec(privateKeys[0]);
 	timer.start("\nshare combination time");
 	dec.begin(dec_shares, header);
 	timer.stop();
@@ -145,14 +208,11 @@ int main(int argc, char* argv[]) {
 	dec.finish(message);
 	timer.stop();
 
-	*/
-	
-	
-
-	timer.start("\nshare combination time");
-	privateKeys.at(0).combine_shares(header, message, dec_shares);
-	timer.stop();
-	write_to_file("decrypted.mp4", message);
-	
-	return 0;
+	if(filetype == "txt") {
+		std::cout << "decrypted message: " << hex2string(message) << "\n";
+	} else {
+		std::string output_name("decrypted.");
+		output_name.append(filetype);
+		write_to_file(output_name, message);
+	}
 }

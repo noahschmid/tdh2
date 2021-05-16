@@ -1,34 +1,38 @@
-#include "tdh2_block.h"
+#include "tdh2.h"
 #include <botan/kdf.h>
 #include <botan/der_enc.h>
 #include <botan/ber_dec.h>
 #include <botan/hash.h>
 #include <math.h>
 #include <botan/auto_rng.h>
+#include <iostream>
 
 namespace Botan {
-    TDH2_Block_Encryptor::TDH2_Block_Encryptor(TDH2_PublicKey& key, RandomNumberGenerator& rng) : 
+    TDH2_Encryptor::TDH2_Encryptor(TDH2_PublicKey& key, RandomNumberGenerator& rng) : 
 	m_rng(rng) {
         m_public_key = key;
-        m_enc = Botan::Cipher_Mode::create("AES-128/CBC/PKCS7", Botan::ENCRYPTION);
+        m_enc = AEAD_Mode::create("ChaCha20Poly1305", ENCRYPTION);
     }
 
-    std::vector<uint8_t> TDH2_Block_Encryptor::begin(uint8_t label[20]) {
+    std::vector<uint8_t> TDH2_Encryptor::begin(uint8_t label[20]) {
         BigInt r(BigInt::random_integer(m_rng, 2, m_public_key.group_q() - 1));
 
 		std::unique_ptr<Botan::KDF> kdf(Botan::KDF::create("HKDF(SHA-256)"));
 
 		// calculate secret value
-		const SymmetricKey secret_value(m_public_key.get_group().power_b_p(m_public_key.get_y(), r, m_public_key.get_group().q_bits()).to_hex_string());
+		const SymmetricKey tdh_key(m_public_key.get_group().power_b_p(m_public_key.get_y(), r, m_public_key.get_group().q_bits()).to_hex_string());
 
-		secure_vector<uint8_t> symmetric_key = kdf->derive_key(16, secret_value.bits_of());
+		secure_vector<uint8_t> symmetric_key = kdf->derive_key(m_enc->key_spec().minimum_keylength(), m_rng.random_vec(16));
 
-		if (symmetric_key.size() != 16) {
+		if (symmetric_key.size() != m_enc->key_spec().minimum_keylength()) {
 			throw Encoding_Error("TDH2: KDF did not provide sufficient output");
 		}
 
         m_enc->set_key(symmetric_key);
-        m_enc->start();
+        m_enc->start(kdf->derive_key(8, symmetric_key));
+		
+		// encrypt symmetric key
+		xor_buf(symmetric_key, tdh_key.bits_of(), tdh_key.length());
 
         std::vector<uint8_t> out;
 		std::vector<uint8_t> msg;
@@ -40,49 +44,50 @@ namespace Botan {
 		BigInt u = m_public_key.get_group().power_g_p(r);
 		BigInt u_hat = m_public_key.get_group().power_b_p(m_public_key.get_g_hat(), r, q_bits);
 
-		std::unique_ptr<HashFunction> hash(HashFunction::create("SHA-256"));
-		hash->update(msg);
-		secure_vector<uint8_t> c_hash(hash->final());
+		BigInt c(symmetric_key);
 		
 		BigInt w = m_public_key.get_group().power_g_p(s);
 		BigInt w_hat = m_public_key.get_group().power_b_p(m_public_key.get_g_hat(), s, q_bits);
-		BigInt e = m_public_key.get_e(c_hash.data(), label, u, w, u_hat, w_hat);
+		BigInt e = m_public_key.get_e(symmetric_key.data(), label, u, w, u_hat, w_hat);
 		BigInt f = m_public_key.get_group().mod_q(s + m_public_key.get_group().multiply_mod_q(r, e));
 
 		DER_Encoder enc(out);
 		enc.start_sequence()
 			.encode(l)
+			.encode(c)
 			.encode(u)
 			.encode(u_hat)
 			.encode(e)
 			.encode(f)
 			.end_cons();
 
-		return out; // (l, u, u_hat, e, f)
+		return out; // (l, c, u, u_hat, e, f)
     }
 
-    void TDH2_Block_Encryptor::update(secure_vector<uint8_t>& block) {
+    void TDH2_Encryptor::update(secure_vector<uint8_t>& block) {
         m_enc->update(block);
     }
 
-    void TDH2_Block_Encryptor::finish(secure_vector<uint8_t>& block) {
+    void TDH2_Encryptor::finish(secure_vector<uint8_t>& block) {
         m_enc->finish(block);
     }
 
-    void TDH2_Block_Encryptor::reset() {
+    void TDH2_Encryptor::reset() {
         m_enc->reset();
     }
 
-    TDH2_Block_Decryptor::TDH2_Block_Decryptor(TDH2_PrivateKey& key) {
+    TDH2_Decryptor::TDH2_Decryptor(TDH2_PrivateKey& key) {
         m_private_key = key;
-        m_dec = Botan::Cipher_Mode::create("AES-128/CBC/PKCS7", Botan::DECRYPTION);
+        m_dec = AEAD_Mode::create("ChaCha20Poly1305", DECRYPTION);
     }
 
-    void TDH2_Block_Decryptor::begin(std::vector<std::vector<uint8_t>> shares, std::vector<uint8_t> header) {
+    void TDH2_Decryptor::begin(std::vector<std::vector<uint8_t>> shares, std::vector<uint8_t> header) {
         if (m_private_key.get_k() > shares.size())
 			throw Invalid_Argument("TDH2: Not enough decryption shares to reconstruct message");
 		
 		std::vector<uint32_t> ids;
+
+		m_private_key.verify_header(header);
 
 		for (int i = 0; i != shares.size(); ++i) {
 			uint32_t id = ((uint32_t)shares.at(i).at(0) << 24) 	|
@@ -91,7 +96,7 @@ namespace Botan {
 					 	((uint32_t)shares.at(i).at(3)  << 0);
 
 
-			if(!m_private_key.verify_share(shares.at(i), (header))) 
+			if(!m_private_key.verify_share(shares.at(i), header)) 
 				throw Invalid_Argument("TDH2: invalid share");
 			
 
@@ -125,39 +130,34 @@ namespace Botan {
 		
 		std::unique_ptr<Botan::RandomNumberGenerator> rng(new Botan::AutoSeeded_RNG);
 		DH_PrivateKey key(*rng.get(), m_private_key.get_group(), 1);
-		secure_vector<uint8_t> secret_key(rG.bytes());
-		rG.binary_encode(secret_key.data());
+		secure_vector<uint8_t> tdh_key(hex_decode_locked(rG.to_hex_string()));
 
 		// calculate secret value
 		std::unique_ptr<Botan::KDF> kdf(Botan::KDF::create("HKDF(SHA-256)"));
 
+		BigInt l, c;
 		BER_Decoder dec(header);
-		BigInt l;
+
 		dec.start_sequence()
-		.decode(l);
+		.decode(l)
+		.decode(c);
 
-		std::vector<uint8_t> cipher;
+		secure_vector<uint8_t> symmetric_key(hex_decode_locked(c.to_hex_string()));
+		xor_buf(symmetric_key, tdh_key, tdh_key.size());
 
-		// derive secret key from secret value
-		secure_vector<uint8_t> secret_keys = kdf->derive_key(16, secret_key);
-
-		if(secret_keys.size() != 16) {
-			throw Encoding_Error("TDH2: KDF did not provide sufficient output");
-		}
-
-        m_dec->set_key(secret_keys);
-        m_dec->start();
+        m_dec->set_key(symmetric_key);
+        m_dec->start(kdf->derive_key(8, symmetric_key));
     };
 
-    void TDH2_Block_Decryptor::update(secure_vector<uint8_t>& block) {
+    void TDH2_Decryptor::update(secure_vector<uint8_t>& block) {
         m_dec->update(block);
     };
 
-    void TDH2_Block_Decryptor::finish(secure_vector<uint8_t>& block) {
+    void TDH2_Decryptor::finish(secure_vector<uint8_t>& block) {
         m_dec->finish(block);
     };
 
-    void TDH2_Block_Decryptor::reset() {
+    void TDH2_Decryptor::reset() {
         m_dec->reset();
     }
 }
