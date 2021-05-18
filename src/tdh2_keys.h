@@ -68,19 +68,19 @@ namespace Botan {
 		 * Get the alternate group generator
 		 * @return generator g_hat
 		 */
-		BigInt get_g_hat() { return m_g_hat; }
+		BigInt get_g_hat() const { return m_g_hat; }
 
 		/**
 		 * Get the threshold parameter
 		 * @return threshold parameter k
 		 */
-		uint8_t get_k() { return m_k; }
+		uint8_t get_k() const { return m_k; }
 
 		/**
 		 * Get the verification key
 		 * @return verification key h
 		 */
-		std::vector<BigInt> get_h() { return m_h; }
+		std::vector<BigInt> get_h() const { return m_h; }
 
 		/**
 		 * @return BER encoded public key
@@ -140,7 +140,7 @@ namespace Botan {
 		 * @param key_bits encrypted private key
 		 * @param password the password to decrypt key
 		 */
-		TDH2_PrivateKey(std::vector<uint8_t> key_bits, std::string &password);
+		TDH2_PrivateKey(secure_vector<uint8_t> key_bits, std::string &password);
 
 		/**
 		 * Generate keys for a new TDH2 cryptosystem
@@ -151,7 +151,7 @@ namespace Botan {
 		 * @return vector of private keys (including public keys)
 		 */
 		static std::vector<TDH2_PrivateKey> generate_keys(uint8_t k,
-			uint32_t n,
+			uint8_t n,
 			RandomNumberGenerator & rng,
 			const DL_Group & group);
 
@@ -172,17 +172,17 @@ namespace Botan {
 		 * BER encode encrypted private key using password
 		 * @param password password to encrypt private key with
 		 */
-		std::vector<uint8_t> BER_encode(std::string &password);
+		secure_vector<uint8_t> BER_encode(std::string &password) const;
 
 		/**
 		 * Get private key value
 		 */
-		BigInt get_xi() { return m_xi;  }
+		BigInt get_xi() const { return m_xi;  }
 
 		/**
 		 * Get private key id
 		 */
-		int get_id() { return m_id; }
+		int get_id() const { return m_id; }
 
 	private:
 		BigInt m_xi;

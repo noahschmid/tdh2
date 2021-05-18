@@ -52,94 +52,9 @@ std::string hex2string(Botan::secure_vector<uint8_t> hex_arr) {
 	return hex2string(unlock(hex_arr));
 }
 
-void write_to_file(std::string filename, Botan::secure_vector<uint8_t>& message) {
-	std::fstream out(filename, std::ios::out | std::ios::binary);
-	size_t size = message.size();
-	float pos = 0;
-	int percent = 0;
-
-	int blocks = size / 100;
-
-	std::string unit(" Bytes");
-
-	if(size > 1000) {
-		size /= 1000;
-		unit = "kB";
-	}
-
-	if(size > 1000) {
-		size /= 1000;
-		unit = "MB";
-	}
-	std::cout << "\nsaving " << filename << " (" << size << unit << ")...\n";
-
-	for(uint8_t byte_buf : message) {
-		out << byte_buf;	
-		++pos;
-		if(pos == blocks) {
-			pos = 0;
-			++percent;
-			std::cout << percent << "% done.." << "\r" << std::flush;
-		}
-	}
-	out.close();
-	std::cout << "finished    \n\n";
-}
-
-void read_file(std::string filename, Botan::secure_vector<uint8_t>& message) {
-	std::ifstream in(filename, std::ios::in | std::ios::binary);
-	in.ignore( std::numeric_limits<std::streamsize>::max() );
-	std::streamsize size = in.gcount();
-	in.clear();   //  Since ignore will have set eof.
-	in.seekg( 0, std::ios_base::beg );
-
-	uint8_t buf;
-	in >> std::noskipws;
-	float pos = 0;
-	int percent = 0;
-
-	int blocks = size / 100;
-	std::string unit(" Bytes");
-
-	if(size > 1000) {
-		size /= 1000;
-		unit = "kB";
-	}
-
-	if(size > 1000) {
-		size /= 1000;
-		unit = "MB";
-	}
-
-	std::cout << "\nreading " << filename << " (" << size << unit << ")...\n";
-
-	while(in >> buf) {
-		message.push_back(buf);
-		++pos;
-		if(pos == blocks) {
-			pos = 0;
-			++percent;
-			std::cout << percent << "% done.." << "\r" << std::flush;
-		}
-	}
-
-	in.close();
-	std::cout << "finished    \n\n";
-}
-
 int main(int argc, char* argv[]) {
-	if(argc == 1) {
-		std::cout << "ERROR: please supply name of file to encrypt\n";
-		return 0;
-	}
-
-	std::cout << std::setprecision(1) << std::fixed;
-
-	std::string filename(argv[1]);
-	std::string filetype = filename.substr(filename.find_last_of('.') + 1);
-	Botan::secure_vector<uint8_t> message;
-	
-	read_file(filename, message);
+	std::string plaintext = "This is a plaintext message.";
+	Botan::secure_vector<uint8_t> message(plaintext.data(), plaintext.data() + plaintext.length());
 	
 	Timer timer;
 	std::unique_ptr<Botan::RandomNumberGenerator> rng(new Botan::AutoSeeded_RNG);
@@ -160,10 +75,11 @@ int main(int argc, char* argv[]) {
 	timer.stop();
 	
 	// test public key encoding/decoding
-	Botan::TDH2_PublicKey publicKey(privateKeys[0]);
+	Botan::TDH2_PublicKey publicKey(privateKeys[0].subject_public_key());
 
 	std::string password = "password";
 
+	
 	// test private key encoding/decoding
 	privateKeys[0] = Botan::TDH2_PrivateKey(privateKeys[0].BER_encode(password), password);
 
@@ -177,7 +93,7 @@ int main(int argc, char* argv[]) {
 	enc.finish(message);
 	timer.stop();
 
-	write_to_file("cipher.txt", message);
+	std::cout << "encrypted text: " << Botan::hex_encode(message) << std::endl;
 	
 	std::vector<int> ids;
 	for(Botan::TDH2_PrivateKey pk : privateKeys) {
@@ -208,11 +124,5 @@ int main(int argc, char* argv[]) {
 	dec.finish(message);
 	timer.stop();
 
-	if(filetype == "txt") {
-		std::cout << "decrypted message: " << hex2string(message) << "\n";
-	} else {
-		std::string output_name("decrypted.");
-		output_name.append(filetype);
-		write_to_file(output_name, message);
-	}
+	std::cout << "decrypted message: " << hex2string(message) << "\n";
 }

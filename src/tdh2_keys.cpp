@@ -130,10 +130,7 @@ namespace Botan {
 
 	TDH2_PublicKey::TDH2_PublicKey(std::vector<uint8_t> key_bits) {
 		m_k = key_bits[0];
-		uint32_t n = ((uint32_t)key_bits[1] << 24) 	|
-					 ((uint32_t)key_bits[2] << 16) 	|
-					 ((uint32_t)key_bits[3] << 8) 	|
-					 ((uint32_t)key_bits[4] << 0);
+		uint8_t n = key_bits[1];
  
 		BigInt p, q, g;
 
@@ -151,7 +148,7 @@ namespace Botan {
 
 		m_group = DL_Group(p, q, g);
 
-		for(uint32_t i = 0; i != n; ++i) {
+		for(uint8_t i = 0; i != n; ++i) {
 			BigInt hi;
 			ber.decode(hi);
 			m_h.push_back(hi);
@@ -164,7 +161,7 @@ namespace Botan {
 		std::vector<uint8_t> encoding;
 		DER_Encoder enc(encoding);
 
-		uint32_t n = m_h.size();
+		uint8_t n = m_h.size();
 
 		enc.start_sequence()
 		.encode(m_group.get_p())
@@ -173,17 +170,13 @@ namespace Botan {
 		.encode(m_g_hat)
 		.encode(m_y);
 
-		for(int i = 0; i != n; ++i) {
+		for(uint8_t i = 0; i != n; ++i) {
 			enc.encode(m_h.at(i));
 		}
 
 		enc.end_cons();
 
-		encoding.insert(encoding.begin(), (uint8_t)(n >> 0));
-		encoding.insert(encoding.begin(), (uint8_t)(n >> 8));
-		encoding.insert(encoding.begin(), (uint8_t)(n >> 16));
-		encoding.insert(encoding.begin(), (uint8_t)(n >> 24));
-
+		encoding.insert(encoding.begin(), n);
 		encoding.insert(encoding.begin(), m_k);
 
 		return encoding;
@@ -276,15 +269,12 @@ namespace Botan {
 		m_xi = xi;
 	}
 
-	TDH2_PrivateKey::TDH2_PrivateKey(std::vector<uint8_t> key_bits, std::string& password) {
+	TDH2_PrivateKey::TDH2_PrivateKey(secure_vector<uint8_t> key_bits, std::string& password) {
 		std::unique_ptr<Botan::KDF> kdf(Botan::KDF::create("HKDF(SHA-256)"));
 		secure_vector<uint8_t> secret(password.data(), password.data() + password.size());
 
 		m_k = key_bits[0];
-		uint32_t n = ((uint32_t)key_bits[1] << 24) 	|
-					 ((uint32_t)key_bits[2] << 16) 	|
-					 ((uint32_t)key_bits[3] << 8) 	|
-					 ((uint32_t)key_bits[4] << 0);
+		uint8_t n = key_bits[1];
 
 		if(m_k > n) {
 			throw Invalid_Argument("Invalid private key provided");
@@ -292,7 +282,7 @@ namespace Botan {
 
 		BigInt p, q, g;
 
-		BER_Decoder dec(key_bits.data() + 5, key_bits.size() - 5);
+		BER_Decoder dec(key_bits.data() + 2, key_bits.size() - 2);
 		BER_Decoder ber = dec.start_sequence();
 		BigInt id, xi;
 
@@ -326,8 +316,8 @@ namespace Botan {
 		return unlock(BigInt::encode_1363(m_y, group_p().bytes()));
 	}
 
-	std::vector<uint8_t> TDH2_PrivateKey::BER_encode(std::string &password) {
-		std::vector<uint8_t> encoding;
+	secure_vector<uint8_t> TDH2_PrivateKey::BER_encode(std::string &password) const {
+		secure_vector<uint8_t> encoding;
 		DER_Encoder enc(encoding);
 
 		std::unique_ptr<Botan::KDF> kdf(Botan::KDF::create("HKDF(SHA-256)"));
@@ -345,30 +335,26 @@ namespace Botan {
 		.encode(BigInt(secret_value))
 		.encode(m_y);
 
-		for(int i = 0; i != get_h().size(); ++i) {
+		for(uint8_t i = 0; i != get_h().size(); ++i) {
 			enc.encode(get_h().at(i));
 		}
 
 		enc.end_cons();
 		
-		uint32_t n = m_h.size();
+		uint8_t n = m_h.size();
 
-		encoding.insert(encoding.begin(), (uint8_t)(n >> 0));
-		encoding.insert(encoding.begin(), (uint8_t)(n >> 8));
-		encoding.insert(encoding.begin(), (uint8_t)(n >> 16));
-		encoding.insert(encoding.begin(), (uint8_t)(n >> 24));
-
+		encoding.insert(encoding.begin(), n);
 		encoding.insert(encoding.begin(), get_k());
 
 		return encoding;
 	}
 
 	std::vector<TDH2_PrivateKey> TDH2_PrivateKey::generate_keys(uint8_t k, 
-													 uint32_t n, 
+													 uint8_t n, 
 													 RandomNumberGenerator& rng,
 													 const DL_Group& group) {
-		if(k > 255) {
-			throw Invalid_Argument("TDH2: Maximum threshold is 255");
+		if(k > 254 || n > 254 || k < 1 || n < 1) {
+			throw Invalid_Argument("TDH2: n and k have to be between 1 and 254");
 		}
 
 		if (k > n) {
@@ -395,7 +381,7 @@ namespace Botan {
 		std::vector<TDH2_PrivateKey> partialKeys;
 		std::vector<BigInt> h;
 
-		for(uint32_t i = 1; i != n + 1; ++i) {
+		for(uint8_t i = 1; i != n + 1; ++i) {
 			BigInt val = 0;
 
 			for (uint8_t m = 0; m != coefficients.size(); ++m) {
@@ -408,7 +394,7 @@ namespace Botan {
 
 		TDH2_PublicKey publicKey(group, y, g_hat, k, h);
 
-		for(uint32_t i = 0; i != xi.size(); ++i) {
+		for(uint8_t i = 0; i != xi.size(); ++i) {
 			partialKeys.push_back(TDH2_PrivateKey(i+1, xi.at(i), g_hat, publicKey));
 		}
 
