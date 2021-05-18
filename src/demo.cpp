@@ -5,12 +5,15 @@
  * 
  */
 
-#include "tdh2.h"
 #include <botan/auto_rng.h>
 #include <botan/bigint.h>
 #include <botan/der_enc.h>
 #include <iostream>
+#include <fstream>
+#include <iomanip>
+#include <limits>
 #include "timer.h"
+#include "tdh2.h"
 
 /**
  * Randomly shuffle array
@@ -45,7 +48,14 @@ std::string hex2string(std::vector<uint8_t> hex_arr) {
 	return newString;
 }
 
+std::string hex2string(Botan::secure_vector<uint8_t> hex_arr) {
+	return hex2string(unlock(hex_arr));
+}
+
 int main(int argc, char* argv[]) {
+	std::string plaintext = "This is a plaintext message.";
+	Botan::secure_vector<uint8_t> message(plaintext.data(), plaintext.data() + plaintext.length());
+	
 	Timer timer;
 	std::unique_ptr<Botan::RandomNumberGenerator> rng(new Botan::AutoSeeded_RNG);
 
@@ -53,15 +63,11 @@ int main(int argc, char* argv[]) {
 	Botan::BigInt q("0xDAF370A2F6328096F29F718466E0FB052596C9D1C284C2C90260947763615AFB");
 	Botan::BigInt g("0x74C509449CE926EE27AFC4AE6076EB046840C1A639A79ABD922937DED193C7681B0E2F154019555E5083968CC8461DBC26B43700171350F4C76665E741B80C2535689B67A89E5E47CC600E7A11A66CD7C0057D677D6F1F3922BE8290BE4CF43CF5841157F6364FF9059E29A5068EFAAD5F10CC6E6712846AE2827CE0042531D069C1D7CD956E65717FB1E17C3C9B1A8AA8901326A75A8E2527B32BCE358ADB3C4268904FAF461F85C1D00A76E50407070865859B6F344815B224D1B52B56B8F96872FFD5769D7FE7E67B4196ECF5412EE87383A1FF3CC70660394D54BC39A2D75916FC6F5AD63031EE6FEE03E48A726920347C3EF61FFB79DCC62F82C7FC4F2");
 
-	std::unique_ptr<Botan::DL_Group> group(new Botan::DL_Group(p,q,g)); 
-	
-	std::string plaintext = "this is a plaintext message";
-	std::vector<uint8_t> msg(plaintext.data(), plaintext.data() + plaintext.size());
+	std::unique_ptr<Botan::DL_Group> group(new Botan::DL_Group(p, q, g)); 
+
 	uint8_t label[20] = "this is a label";
 
-	std::cout << "message: " << plaintext << "\n";
-
-	const int n = 500, k = 50;
+	const int n = 5, k = 3;
 
 	// generate private/public keypair
 	timer.start("key generation time");
@@ -69,19 +75,25 @@ int main(int argc, char* argv[]) {
 	timer.stop();
 	
 	// test public key encoding/decoding
-	Botan::TDH2_PublicKey publicKey(privateKeys[0]);
+	Botan::TDH2_PublicKey publicKey(privateKeys[0].subject_public_key());
 
 	std::string password = "password";
 
+	
 	// test private key encoding/decoding
 	privateKeys[0] = Botan::TDH2_PrivateKey(privateKeys[0].BER_encode(password), password);
 
-	// encrypt using public key
-	timer.start("\nencryption time");
-	std::vector<uint8_t> encryption = publicKey.encrypt(msg, label, *rng.get());
+	// encrypt using block encryption
+	Botan::TDH2_Encryptor enc(publicKey, *rng.get());
+	timer.start("\nheader generation time");
+	std::vector<uint8_t> header = enc.begin(label);
 	timer.stop();
 
-	std::cout << "encryption: " << Botan::hex_encode(encryption) << "\n\n";
+	timer.start("block encryption time");
+	enc.finish(message);
+	timer.stop();
+
+	std::cout << "encrypted text: " << Botan::hex_encode(message) << std::endl;
 	
 	std::vector<int> ids;
 	for(Botan::TDH2_PrivateKey pk : privateKeys) {
@@ -97,15 +109,20 @@ int main(int argc, char* argv[]) {
 	for(int i = 0; i < k; ++i) {
 		std::cout << "using key [" << ids.at(i) << "] to create decryption share, ";
 		timer.start("time");
-		dec_shares.push_back(privateKeys.at(ids.at(i) - 1).decrypt_share(encryption, *rng.get()));
+		dec_shares.push_back(privateKeys.at(ids.at(i) - 1).create_share(header, *rng.get()));
 		timer.stop();
 	}
 
 	// combine decryption shares to get original message back
+	
+	Botan::TDH2_Decryptor dec(privateKeys[0]);
 	timer.start("\nshare combination time");
-	std::vector<uint8_t> recovered_message = privateKeys.at(0).combine_shares(encryption, dec_shares);
+	dec.begin(dec_shares, header);
 	timer.stop();
-	std::cout << "recovered message: " << hex2string(recovered_message) << "\n";
 
-	return 0;
+	timer.start("block 1 decryption time");
+	dec.finish(message);
+	timer.stop();
+
+	std::cout << "decrypted message: " << hex2string(message) << "\n";
 }
