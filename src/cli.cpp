@@ -1,5 +1,5 @@
 /**
- * Short demo illustrating the usage of the TDH2 cryptosystem
+ * Basi CLI implementation used for presentation purposes
  * 
  * (C) 2021 Noah Schmid
  * 
