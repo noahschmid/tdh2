@@ -4,10 +4,9 @@
 #include <botan/ber_dec.h>
 #include <botan/hash.h>
 #include <math.h>
-#include <botan/auto_rng.h>
 #include <iostream>
 
-namespace Botan {
+namespace TDH2 {
     TDH2_Encryptor::TDH2_Encryptor(TDH2_PublicKey& key, RandomNumberGenerator& rng) : 
 	m_rng(rng) {
         m_public_key = key;
@@ -87,7 +86,8 @@ namespace Botan {
 		
 		std::vector<uint32_t> ids;
 
-		m_private_key.verify_header(header);
+		if(!m_private_key.verify_header(header)) 
+			throw Invalid_Argument("TDH2: invalid decryption header");
 
 		for (int i = 0; i != shares.size(); ++i) {
 			uint32_t id = ((uint32_t)shares.at(i).at(0) << 24) 	|

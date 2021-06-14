@@ -9,12 +9,16 @@
 
 #include <botan/dh.h>
 #include <botan/bigint.h>
+#include <botan/kdf.h>
 #include <stdlib.h>
 #include <time.h>
 #include <botan/hex.h>
 #include <botan/dl_group.h>
+#include <botan/aead.h>
 
-namespace Botan {
+using namespace Botan;
+
+namespace TDH2 {
 
 	/**
 	 * TDH2 Public Key used for encryption
@@ -60,9 +64,18 @@ namespace Botan {
 		bool verify_header(std::vector<uint8_t> header);
 
 		/**
+		 * @param header the header of the encrypted message
 		 * @return label of encrypted message
 		 */
-		std::vector<uint8_t> extract_label(std::vector<uint8_t> encryption);
+		std::vector<uint8_t> extract_label(std::vector<uint8_t> header);
+
+		/**
+		 * Encrypt message
+		 * @param message message to encrypt
+		 * @param label plaintext label to identify message
+		 * @param rng random number generator to use
+		 */
+		std::vector<uint8_t> encrypt(secure_vector<uint8_t> &message, uint8_t label[20], RandomNumberGenerator &rng) const;
 
 		/**
 		 * Get the alternate group generator
@@ -98,7 +111,7 @@ namespace Botan {
 		 * @param q modulus
 		 * @return hash (value in Zq) 
 		 */
-		BigInt get_e(uint8_t m1[32], uint8_t m2[20], BigInt g1, BigInt g2, BigInt g3, BigInt g4);
+		BigInt get_e(uint8_t m1[32], uint8_t m2[20], BigInt g1, BigInt g2, BigInt g3, BigInt g4) const;
 
 		/**
 		 * Hash function used for zero knowledge proofs to validate decryption share. Hashes (g1, g2, g3) -> Zq
@@ -162,6 +175,9 @@ namespace Botan {
 		 */
 		std::vector<uint8_t> create_share(std::vector<uint8_t> header, 
 			RandomNumberGenerator& rng);
+
+
+		void combine_shares(std::vector<uint8_t> header, std::vector<std::vector<uint8_t>> shares, secure_vector<uint8_t> &message);
 
 		/**
 		 * @return public value y = g^x mod p

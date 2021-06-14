@@ -5,8 +5,11 @@
 #include <botan/cipher_mode.h>
 #include <botan/stream_cipher.h>
 #include <botan/aead.h>
+#include <botan/auto_rng.h>
 
-namespace Botan {
+using namespace Botan;
+
+namespace TDH2 {
 class TDH2_Encryptor {
     public:
     TDH2_Encryptor(TDH2_PublicKey& key, RandomNumberGenerator& rng);
