@@ -24,9 +24,10 @@ public:
 		m_startTime = std::chrono::steady_clock::now();
 	}
 
-	void stop() {
+	int stop() {
 		m_endTime = std::chrono::steady_clock::now();
 		printf("%s: %dms. \n", m_label.c_str(), (int)(std::chrono::duration_cast<std::chrono::milliseconds>(m_endTime - m_startTime).count()));
+		return (int)(std::chrono::duration_cast<std::chrono::milliseconds>(m_endTime - m_startTime).count());
 	}
 
 	float getSecondsElapsed() {

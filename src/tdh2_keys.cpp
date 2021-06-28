@@ -1,6 +1,5 @@
 /**
  * TDH2 Cryptosystem
- *
  * (C) 2021 Noah Schmid
  */
 
@@ -210,17 +209,14 @@ namespace TDH2 {
 		.decode(c)
 		.decode(u);
 
-		uint32_t id = ((uint32_t)share.at(0) << 24) |
-					  ((uint32_t)share.at(1) << 16) |
-					  ((uint32_t)share.at(2) << 8) 	|
-					  ((uint32_t)share.at(3) << 0);
-
-		size_t valid = share.at(4);
-
+		uint8_t id = share.at(0);
 		BigInt hi(m_h.at((int)(id - 1)));
 
+		if(share.at(1) == 0) 
+			return false;
+
 		BigInt ui, ei, fi;
-		BER_Decoder dec2(share.data() + 5, share.size() - 5);
+		BER_Decoder dec2(share.data() + 2, share.size() - 2);
 		dec2.start_sequence()
 			.decode(ui)
 			.decode(ei)
@@ -249,14 +245,14 @@ namespace TDH2 {
 		std::vector<uint8_t> label(l.bytes());
 		l.binary_encode(label.data());
 
-		std::vector<uint8_t> c_hash(c.bytes());
-		c.binary_encode(c_hash.data());
+		std::vector<uint8_t> cipher(c.bytes());
+		c.binary_encode(cipher.data());
 		BigInt w(m_group.multiply_mod_p(m_group.power_g_p(f, m_group.q_bits()), 
 			m_group.inverse_mod_p(m_group.power_b_p(u, e, m_group.q_bits()))));
 		BigInt w_hat(m_group.multiply_mod_p(m_group.power_b_p(get_g_hat(), f, m_group.q_bits()), 
 			m_group.inverse_mod_p(m_group.power_b_p(u_hat, e, m_group.q_bits()))));
 
-		return (e == get_e(c_hash.data(), label.data(), u, w, u_hat, w_hat));
+		return (e == get_e(cipher.data(), label.data(), u, w, u_hat, w_hat));
 	}
 
 
@@ -312,7 +308,7 @@ namespace TDH2 {
 		return out; // (l, c, u, u_hat, e, f)
 	}
 	
-	TDH2_PrivateKey::TDH2_PrivateKey(uint32_t id,
+	TDH2_PrivateKey::TDH2_PrivateKey(uint8_t id,
 		BigInt xi,
 		BigInt g_hat,
 		TDH2_PublicKey publicKey) :
@@ -454,31 +450,19 @@ namespace TDH2 {
 	}
 
 	std::vector<uint8_t> TDH2_PrivateKey::create_share(std::vector<uint8_t> header, RandomNumberGenerator &rng) {
-		BER_Decoder dec(header.data(), header.size());
-		BigInt u, u_hat, e, f, c, l;
-
-		dec.start_sequence()
-		.decode(l)
-		.decode(c)
-		.decode(u)
-		.decode(u_hat)
-		.decode(e)
-		.decode(f);
-
-		std::vector<uint8_t> label(hex_decode(l.to_hex_string()));
-		std::vector<uint8_t> cipher(hex_decode(c.to_hex_string())); 
-
-		f = m_group.mod_q(f);
-		BigInt w(m_group.multiply_mod_p(m_group.power_g_p(f, m_group.q_bits()), 
-			m_group.inverse_mod_p(m_group.power_b_p(u, e, m_group.q_bits()))));
-			
-		BigInt w_hat(m_group.multiply_mod_p(m_group.power_b_p(get_g_hat(), f, m_group.q_bits()), 
-			m_group.inverse_mod_p(m_group.power_b_p(u_hat, e, m_group.q_bits()))));
-
 		uint8_t valid = 0;
 		std::vector<uint8_t> share;
 
-		if (e == get_e(cipher.data(), label.data(), u, w, u_hat, w_hat)) {
+		if (verify_header(header)) {
+			BER_Decoder dec(header.data(), header.size());
+			BigInt u, c, l;
+
+			dec.start_sequence()
+			.decode(l)
+			.decode(c)
+			.decode(u)
+			.discard_remaining();
+
 			valid = 1;
 			BigInt ui(m_group.power_b_p(u, m_xi, m_group.q_bits()));
 			BigInt si(BigInt::random_integer(rng, 2, m_group.get_q() - 1));
@@ -498,39 +482,32 @@ namespace TDH2 {
 		}
 
 		share.insert(share.begin(), valid);
-		share.insert(share.begin(), (uint8_t)(m_id >> 0));
-		share.insert(share.begin(), (uint8_t)(m_id >> 8));
-		share.insert(share.begin(), (uint8_t)(m_id >> 16));
-		share.insert(share.begin(), (uint8_t)(m_id >> 24));
+		share.insert(share.begin(), m_id);
 		return share; // (id, 1, ui, ei, fi) || (id, 0)
 	}
 
-	void TDH2_PrivateKey::combine_shares(std::vector<uint8_t> header, std::vector<std::vector<uint8_t>> shares, secure_vector<uint8_t> &message) {
+	void TDH2_PrivateKey::combine_shares(std::vector<uint8_t> header, std::vector<std::vector<uint8_t>> shares, secure_vector<uint8_t> &cipher) {
         if (m_k > shares.size())
 			throw Invalid_Argument("TDH2: Not enough decryption shares to reconstruct message");
 		
-		std::vector<uint32_t> ids;
+		std::vector<uint8_t> ids;
 
 		if(!verify_header(header)) 
 			throw Invalid_Argument("TDH2: invalid decryption header");
 
 		for (int i = 0; i != shares.size(); ++i) {
-			uint32_t id = ((uint32_t)shares.at(i).at(0) << 24) 	|
-					 	((uint32_t)shares.at(i).at(1)  << 16) 	|
-					 	((uint32_t)shares.at(i).at(2)  << 8) 	|
-					 	((uint32_t)shares.at(i).at(3)  << 0);
-
+			uint8_t id = shares.at(i).at(0);
 
 			if(!verify_share(shares.at(i), header)) 
 				throw Invalid_Argument("TDH2: invalid share");
 			
 
-			if(shares.at(i).at(4) == 0) 
+			if(shares.at(i).at(1) == 0) 
 				throw Invalid_Argument("TDH2: invalid share");
 			
 			ids.push_back(id);
 		}
-		
+
 		BigInt rG(1);
 		BigInt q(group_q());
 		for (int k = 0; k != shares.size(); ++k) {
@@ -547,7 +524,7 @@ namespace TDH2 {
 			}
 
 			BigInt ui;
-			BER_Decoder dec(shares.at(k).data() + 5, shares.at(k).size() - 5);
+			BER_Decoder dec(shares.at(k).data() + 2, shares.at(k).size() - 2);
 			dec.start_sequence().decode(ui);
 			
 			rG = get_group().multiply_mod_p(get_group().power_b_p(ui, l, get_group().q_bits()), rG);
@@ -570,10 +547,9 @@ namespace TDH2 {
 		secure_vector<uint8_t> symmetric_key(hex_decode_locked(c.to_hex_string()));
 		xor_buf(symmetric_key, tdh_key, tdh_key.size());
 
-
 		std::unique_ptr<AEAD_Mode> sym_dec =  AEAD_Mode::create("ChaCha20Poly1305", DECRYPTION);
         sym_dec->set_key(symmetric_key);
         sym_dec->start(kdf->derive_key(8, symmetric_key));
-		sym_dec->finish(message);
-    };
+		sym_dec->finish(cipher);
+    }
 }

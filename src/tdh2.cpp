@@ -1,3 +1,8 @@
+/*
+* TDH2 Threshold Cryptosystem
+* (C) 2021 Noah Schmid
+*/
+
 #include "tdh2.h"
 #include <botan/kdf.h>
 #include <botan/der_enc.h>

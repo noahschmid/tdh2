@@ -61,6 +61,11 @@ namespace TDH2 {
 		bool verify_share(std::vector<uint8_t> share, std::vector<uint8_t> header);
 
 
+		/**
+		 * Determine whether a decryption header was properly generated from a plain text
+		 * @param header
+		 * @return true if decryption header is valid, false else
+		 */ 
 		bool verify_header(std::vector<uint8_t> header);
 
 		/**
@@ -143,7 +148,7 @@ namespace TDH2 {
 		 * @param g_hat alternate generator of underlying DL group
 		 * @param publicKey corresponding public key
 		 */
-		TDH2_PrivateKey(uint32_t id,
+		TDH2_PrivateKey(uint8_t id,
 			BigInt xi,
 			BigInt g_hat, 
 			TDH2_PublicKey publicKey);
@@ -176,8 +181,15 @@ namespace TDH2 {
 		std::vector<uint8_t> create_share(std::vector<uint8_t> header, 
 			RandomNumberGenerator& rng);
 
-
-		void combine_shares(std::vector<uint8_t> header, std::vector<std::vector<uint8_t>> shares, secure_vector<uint8_t> &message);
+		/**
+		 * Combines decryption shares and decrypts cipher
+		 * @param header decryption header
+		 * @param shares decryption shares
+		 * @param cipher message to decrypt
+		 * 
+		 * @throws InvalidArgument if there are not enough shares supplied, or if the header or a share is invalid
+		 */ 
+		void combine_shares(std::vector<uint8_t> header, std::vector<std::vector<uint8_t>> shares, secure_vector<uint8_t> &cipher);
 
 		/**
 		 * @return public value y = g^x mod p
@@ -202,7 +214,7 @@ namespace TDH2 {
 
 	private:
 		BigInt m_xi;
-		uint32_t m_id;
+		uint8_t m_id;
 	};
 }
 

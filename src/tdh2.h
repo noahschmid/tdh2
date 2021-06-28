@@ -1,3 +1,8 @@
+/*
+* TDH2 Threshold Cryptosystem
+* (C) 2021 Noah Schmid
+*/
+
 #ifndef BOTAN_THD2_H
 #define BOTAN_TDH2_H
 
