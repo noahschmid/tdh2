@@ -20,6 +20,9 @@ using namespace Botan;
 
 namespace TDH2 {
 
+	#define SYMMETRIC_KEY_LENGTH 32
+	#define LABEL_LENGTH 20
+
 	/**
 	 * TDH2 Public Key used for encryption
 	 */
@@ -80,7 +83,7 @@ namespace TDH2 {
 		 * @param label plaintext label to identify message
 		 * @param rng random number generator to use
 		 */
-		std::vector<uint8_t> encrypt(secure_vector<uint8_t> &message, uint8_t label[20], RandomNumberGenerator &rng) const;
+		std::vector<uint8_t> encrypt(secure_vector<uint8_t> &message, uint8_t label[LABEL_LENGTH], RandomNumberGenerator &rng) const;
 
 		/**
 		 * Get the alternate group generator
@@ -116,7 +119,7 @@ namespace TDH2 {
 		 * @param q modulus
 		 * @return hash (value in Zq) 
 		 */
-		BigInt get_e(uint8_t m1[32], uint8_t m2[20], BigInt g1, BigInt g2, BigInt g3, BigInt g4) const;
+		BigInt get_e(uint8_t m1[32], uint8_t m2[LABEL_LENGTH], BigInt g1, BigInt g2, BigInt g3, BigInt g4) const;
 
 		/**
 		 * Hash function used for zero knowledge proofs to validate decryption share. Hashes (g1, g2, g3) -> Zq

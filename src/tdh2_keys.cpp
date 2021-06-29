@@ -16,7 +16,7 @@
 #include <botan/cipher_mode.h>
 
 namespace TDH2 {
-	
+
 	BigInt TDH2_PublicKey::get_ei(BigInt g1, BigInt g2, BigInt g3) {
 		std::unique_ptr<HashFunction> hash(HashFunction::create("SHA-256"));
 		secure_vector<uint8_t> data(3 * hash->output_length());
@@ -56,7 +56,7 @@ namespace TDH2 {
 		return m_group.mod_q(BigInt(h));
 	}
 
-	BigInt TDH2_PublicKey::get_e(uint8_t m1[16], uint8_t m2[20], BigInt g1, BigInt g2, BigInt g3, BigInt g4) const {
+	BigInt TDH2_PublicKey::get_e(uint8_t m1[16], uint8_t m2[LABEL_LENGTH], BigInt g1, BigInt g2, BigInt g3, BigInt g4) const {
 		std::unique_ptr<HashFunction> hash(HashFunction::create("SHA-256"));
 		secure_vector<uint8_t> data(6*hash->output_length());
 
@@ -65,7 +65,7 @@ namespace TDH2 {
 		std::copy(buf.begin(), buf.end(), data.data());
 		buf.clear();
 
-		hash->update(m2, 20);
+		hash->update(m2, LABEL_LENGTH);
 		buf = hash->final();
 		std::copy(buf.begin(), buf.end(), data.data() + 32);
 		buf.clear();
@@ -133,7 +133,7 @@ namespace TDH2 {
 		BigInt p, q, g;
 
 		if(m_k > n) {
-			throw Invalid_Argument("Invalid public key provided");
+			throw Invalid_Argument("TDH2: Invalid public key provided");
 		}
 
 		BER_Decoder dec(key_bits.data() + 2, key_bits.size() - 2);
@@ -201,12 +201,10 @@ namespace TDH2 {
 		BigInt g(m_group.get_g());
 		BigInt p(m_group.get_p());
 
-		BigInt u, c, l;
-		BER_Decoder dec(header.data(), header.size());
+		BigInt u;
+		BER_Decoder dec(header.data() + LABEL_LENGTH + SYMMETRIC_KEY_LENGTH, header.size() + LABEL_LENGTH + SYMMETRIC_KEY_LENGTH);
 
 		dec.start_sequence()
-		.decode(l)
-		.decode(c)
 		.decode(u);
 
 		uint8_t id = share.at(0);
@@ -231,22 +229,18 @@ namespace TDH2 {
 		BigInt g(m_group.get_g());
 		BigInt p(m_group.get_p());
 
-		BigInt u, u_hat, e, f, c, l;
-		BER_Decoder dec(header.data(), header.size());
+		BigInt u, u_hat, e, f;
+		BER_Decoder dec(header.data() + SYMMETRIC_KEY_LENGTH + LABEL_LENGTH, header.size() - LABEL_LENGTH - SYMMETRIC_KEY_LENGTH);
 
 		dec.start_sequence()
-		.decode(l)
-		.decode(c)
 		.decode(u)
 		.decode(u_hat)
 		.decode(e)
 		.decode(f);
 
-		std::vector<uint8_t> label(l.bytes());
-		l.binary_encode(label.data());
+		std::vector<uint8_t> label(header.data(), header.data() + LABEL_LENGTH);
+		std::vector<uint8_t> cipher(header.data() + LABEL_LENGTH, header.data() + LABEL_LENGTH + SYMMETRIC_KEY_LENGTH);
 
-		std::vector<uint8_t> cipher(c.bytes());
-		c.binary_encode(cipher.data());
 		BigInt w(m_group.multiply_mod_p(m_group.power_g_p(f, m_group.q_bits()), 
 			m_group.inverse_mod_p(m_group.power_b_p(u, e, m_group.q_bits()))));
 		BigInt w_hat(m_group.multiply_mod_p(m_group.power_b_p(get_g_hat(), f, m_group.q_bits()), 
@@ -256,7 +250,7 @@ namespace TDH2 {
 	}
 
 
-	std::vector<uint8_t> TDH2_PublicKey::encrypt(secure_vector<uint8_t> &message, uint8_t label[20], RandomNumberGenerator &rng) const {
+	std::vector<uint8_t> TDH2_PublicKey::encrypt(secure_vector<uint8_t> &message, uint8_t label[LABEL_LENGTH], RandomNumberGenerator &rng) const {
 		BigInt r(BigInt::random_integer(rng, 2, group_q() - 1));
 		std::unique_ptr<AEAD_Mode> sym_enc =  AEAD_Mode::create("ChaCha20Poly1305", ENCRYPTION);
 		std::unique_ptr<Botan::KDF> kdf(Botan::KDF::create("HKDF(SHA-256)"));
@@ -264,9 +258,9 @@ namespace TDH2 {
 		// calculate secret value
 		const SymmetricKey tdh_key(get_group().power_b_p(get_y(), r, get_group().q_bits()).to_hex_string());
 
-		secure_vector<uint8_t> symmetric_key = kdf->derive_key(sym_enc->key_spec().minimum_keylength(), rng.random_vec(16));
+		secure_vector<uint8_t> symmetric_key = kdf->derive_key(SYMMETRIC_KEY_LENGTH, rng.random_vec(16));
 
-		if (symmetric_key.size() != sym_enc->key_spec().minimum_keylength()) {
+		if (symmetric_key.size() != SYMMETRIC_KEY_LENGTH) {
 			throw Encoding_Error("TDH2: KDF did not provide sufficient output");
 		}
 
@@ -276,9 +270,9 @@ namespace TDH2 {
 		// encrypt symmetric key
 		xor_buf(symmetric_key, tdh_key.bits_of(), tdh_key.length());
 
-        std::vector<uint8_t> out;
+        std::vector<uint8_t> header;
 		std::vector<uint8_t> msg;
-        BigInt l(label, 20);
+        BigInt l(label, LABEL_LENGTH);
 
         size_t q_bits = get_group().q_bits();
 
@@ -293,19 +287,20 @@ namespace TDH2 {
 		BigInt e = get_e(symmetric_key.data(), label, u, w, u_hat, w_hat);
 		BigInt f = get_group().mod_q(s + get_group().multiply_mod_q(r, e));
 
-		DER_Encoder enc(out);
+		DER_Encoder enc(header);
 		enc.start_sequence()
-			.encode(l)
-			.encode(c)
 			.encode(u)
 			.encode(u_hat)
 			.encode(e)
 			.encode(f)
 			.end_cons();
 
-		sym_enc->finish(message);
+		header.insert(header.begin(), symmetric_key.data(), symmetric_key.data() + SYMMETRIC_KEY_LENGTH);
+		header.insert(header.begin(), label, label + LABEL_LENGTH);
 
-		return out; // (l, c, u, u_hat, e, f)
+		sym_enc->finish(message); // encrypt message
+
+		return header; // (l, c, u, u_hat, e, f)
 	}
 	
 	TDH2_PrivateKey::TDH2_PrivateKey(uint8_t id,
@@ -325,7 +320,7 @@ namespace TDH2 {
 		uint8_t n = key_bits[1];
 
 		if(m_k > n) {
-			throw Invalid_Argument("Invalid private key provided");
+			throw Invalid_Argument("TDH2: Invalid private key provided");
 		}
 
 		BigInt p, q, g;
@@ -454,12 +449,10 @@ namespace TDH2 {
 		std::vector<uint8_t> share;
 
 		if (verify_header(header)) {
-			BER_Decoder dec(header.data(), header.size());
-			BigInt u, c, l;
+			BER_Decoder dec(header.data() + SYMMETRIC_KEY_LENGTH + LABEL_LENGTH, header.size() - LABEL_LENGTH - SYMMETRIC_KEY_LENGTH);
+			BigInt u;
 
 			dec.start_sequence()
-			.decode(l)
-			.decode(c)
 			.decode(u)
 			.discard_remaining();
 
@@ -537,14 +530,7 @@ namespace TDH2 {
 		// calculate secret value
 		std::unique_ptr<Botan::KDF> kdf(Botan::KDF::create("HKDF(SHA-256)"));
 
-		BigInt l, c;
-		BER_Decoder dec(header);
-
-		dec.start_sequence()
-		.decode(l)
-		.decode(c);
-
-		secure_vector<uint8_t> symmetric_key(hex_decode_locked(c.to_hex_string()));
+		secure_vector<uint8_t> symmetric_key(header.data() + LABEL_LENGTH, header.data() + LABEL_LENGTH + SYMMETRIC_KEY_LENGTH);
 		xor_buf(symmetric_key, tdh_key, tdh_key.size());
 
 		std::unique_ptr<AEAD_Mode> sym_dec =  AEAD_Mode::create("ChaCha20Poly1305", DECRYPTION);
