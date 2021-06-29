@@ -1,9 +1,12 @@
 # TDH2 Threshold Cryptosystem
 
-Threshold cryptosystem based on [this](https://www.shoup.net/papers/thresh1.pdf) paper implemented in C++ using the [Botan library](https://github.com/randombit/botan). 
+Implementation of a threshold cryptosystem that's secure against chosen ciphertext attacks based on [this](https://www.shoup.net/papers/thresh1.pdf) paper. This implementation in C++ uses the [Botan library](https://github.com/randombit/botan). 
 
-# Idea
-First, we generate a public key and n private key shares and distribute the private keys to n parties. The public key will be used to encrypt a message and k parties holding a private key have to cooperate in order to decrypt the ciphertext. They each create a decryption share using their respective private key and then use k decryption shares to reconstruct the original message.
+# Threshold Encryption
+In a threshold encryption scheme, instead of having a single public/private key pair, the private key is shared between n parties. Messages can get encrypted using the public key and k parties holding a private key have to cooperate in order to decrypt the ciphertext. They each create a decryption share using their respective private key and k decryption shares can be used to reconstruct the original message.
+
+# Installation
+You have to install [Botan](https://github.com/randombit/botan) to be able to build this code. Use `make` to build and run the demo application.
 
 # Usage
 For a demo project, take a look at demo.cpp.
